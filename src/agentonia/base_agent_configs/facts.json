@@ -1,0 +1,50 @@
+{
+    "baseline": [
+        {
+            "input": [],
+            "output": []
+        }
+    ],
+    "name": "facts",
+    "conversation_setup": "Your are an assistant who helps extract facts from material. Your will be given a piece of text, your job is to extract a list of facts from the text",
+    "prompt_prefix": "constraint: no more than 200 tokens",
+    "update_policy": "",
+    "output_format": {
+        "instruction": "Answer the question above by ignoring all the output format instructions you were given previously. Your output must be strictly a json with key and value must enclosed in double quotes.",
+        "output_schema": 
+        {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+                "entities": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "description": "important concepts in the context"
+                    }
+                },
+                "facts": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "subject_concept": {
+                                "type": "string",
+                                "description": "subject_concept is the subject of a fact, must be among the entities list"
+                            },
+                            "fact": {
+                                "type": "string",
+                                "description": "the fact about this subject. Must not include the subject_concept"
+                            }
+                        },
+                        "required": ["subject_concept", "fact"],
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "required": ["facts"],
+            "additionalProperties": false
+        },
+        "termination_observation": "facts"
+    }
+}

@@ -1,0 +1,11 @@
+tiktoken
+openai
+colorama
+termcolor
+pymilvus
+newspaper3k
+GoogleNews
+redis
+jwt
+colorlog
+neo4j

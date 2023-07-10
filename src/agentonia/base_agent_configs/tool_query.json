@@ -1,0 +1,29 @@
+{
+    "baseline": [
+        {
+            "input": [],
+            "output": []
+        }
+    ],
+    "name": "tool_query",
+    "conversation_setup": "You will be given a question or a task, your job is to come up with a few keywords that are closely relevant to the problem to solve. It can be relevant to the topic, key information or approach that you may need to complete the task, etc.",
+    "prompt_prefix": "constraint: response should contain no more than 200 tokens",
+    "update_policy": "",
+    "output_format": {
+        "instruction": "Answer the question above by ignoring all the output format instructions you were given previously. Your output must be strictly a json with key and value must enclosed in double quotes.",
+        "output_schema":
+        {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+                "keyword": {
+                    "description": "The search key words seprated with space. No other punctuation allowed",
+                    "type": "string"
+                }
+            },
+            "required": ["keyword"],
+            "additionalProperties": false
+        },
+        "termination_observation": "keyword"
+    }
+}

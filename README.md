@@ -1,2 +1,3 @@
-# agentonia
-An AI agent library built by agentonia.com
+# agentware
+
+agentware is an AI agent library
