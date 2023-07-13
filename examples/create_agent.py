@@ -6,7 +6,6 @@ This example shows several ways of creating/fetching agents:
 import json
 import math
 from agentware.agent import Agent
-from agentware.connector import Connector
 from agentware.agent_logger import Logger
 from utils import create_memory_from_local_agents
 
@@ -62,7 +61,7 @@ def create_agent_from_local_connector(agent_id):
     with open(connector_cfg_path, "r") as f:
         connector_cfg = json.loads(f.read())
     connector = Connector(1, connector_cfg)
-    agents = connector.list_agents(user_id=1)
+    agents = connector.all_agents(user_id=1)
     print("agents are", agents)
     connector.connect(agent_id)
     agent = Agent.from_connector(connector)

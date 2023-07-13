@@ -1,12 +1,12 @@
 from agentware.memory import Memory
-from agentware.base import create_base_agents
+from agentware.base import create_helper_agents
 import time
 import json
 import os
 
 
 def create_memory_from_local_agents(main_agent_config_path, connector):
-    base_agents = create_base_agents()
+    base_agents = create_helper_agents()
     main_agent_config = None
     with open(main_agent_config_path, "r") as f:
         main_agent_config = json.loads(f.read())

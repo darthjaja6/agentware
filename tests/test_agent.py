@@ -5,8 +5,7 @@ import time
 import math
 import copy
 from agentware.agent import Agent
-from agentware.base import BaseConnector, Knowledge, AgentGraph
-from agentware.connector import Connector
+from agentware.base import Connector
 from agentware.memory import Memory
 from agentware.agent_logger import Logger
 from test_memory import create_memory
@@ -105,7 +104,7 @@ def RunDocumentReaderFromConnector(agent_id):
     with open(connector_cfg_path, "r") as f:
         connector_cfg = json.loads(f.read())
     connector = Connector(1, connector_cfg)
-    agents = connector.list_agents(user_id=1)
+    agents = connector.all_agents(user_id=1)
     print("agents are", agents)
     connector.connect(agent_id)
     agent = Agent.from_connector(connector)

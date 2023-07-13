@@ -6,10 +6,9 @@ from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 import json
-import functools
-import jwt
-import time
+
 from agentware.base import Knowledge
+from agentware import error_codes
 from server.vector_db_clients.command_vector_db import CommandsVectorStore
 from server.vector_db_clients.knowledge_vector_db import KnowledgeVectorStore
 from server.knowledge_graph_clients.knowledge_graph_client import KnowledgeGraphClient, Node
@@ -28,64 +27,9 @@ knowledge_base_client = KnowledgeVectorStore(
 kg_client = KnowledgeGraphClient(config)
 db_client = DbClient(config["redis_db_config"])
 
-auth_secret_key = config["auth_secret_key"]
-
-
-def verify_token(view_func):
-    @functools.wraps(view_func)
-    def _wrapped_view(request, *args, **kwargs):
-        # Get the Authorization header
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-
-        # Make sure the Authorization header is in the correct format
-        auth_parts = auth_header.split()
-        if len(auth_parts) != 2 or auth_parts[0].lower() != 'bearer':
-            return JsonResponse({'error': 'Invalid Authorization header format. Expected "Bearer <token>"'}, status=401)
-
-        # Verify the token (this example just checks if the token equals 'my-secret-token')
-        try:
-            decoded_payload = jwt.decode(
-                auth_parts[1], auth_secret_key, algorithms=['HS256'])
-            print("payload is", decoded_payload)
-            if time.time() > decoded_payload["expires_at"]:
-                raise TOKEN_TIMEOUT
-            kwargs["user_id"] = decoded_payload["user_id"]
-        except:
-            return JsonResponse({'error': 'Unauthorized'}, status=401)
-        # If the token is verified, call the view normally
-        return view_func(request, *args, **kwargs)
-
-    return _wrapped_view
-
-
-@csrf_exempt
-@require_http_methods("GET")
-def get_token(request, api_key: str):
-    try:
-        # Check if token is valid in redis
-        # Check the user that has this api key
-        user_data = db_client.get_user(api_key)
-        if not user_data:
-            raise ValueError("Invalid api key")
-        # Define the payload data for the JWT
-        expires_at = time.time() + 3600 * 10 * 1000  # Expires after 10 hrs
-        payload = {
-            "user_id": user_data["id"],
-            "expires_at": expires_at
-        }
-
-        # Generate the JWT
-        result = {
-            "token": jwt.encode(payload, auth_secret_key, algorithm='HS256')
-        }
-        return JsonResponse(result, safe=False)
-    except Exception as e:
-        return HttpResponseBadRequest(str(e))
-
 
 @csrf_exempt
 @require_http_methods("PUT")
-@verify_token
 def create_agent(request, **kwargs):
     try:
         user_id = kwargs["user_id"]
@@ -97,42 +41,43 @@ def create_agent(request, **kwargs):
 
 @csrf_exempt
 @require_http_methods("GET")
-@verify_token
-def get_checkpoint(request, agent_id, **kwargs):
+def get_checkpoint(request, **kwargs):
     try:
-        main_agent_config, helper_agent_configs, memory_units, knowledges, context = db_client.get_checkpoint(
+        agent_id = request.GET.get('agent_id')
+        if not agent_id:
+            return JsonResponse({
+                "success": False,
+                "error_code": error_codes.INVALID_AGENT_ID})
+        main_agent_config, memory_units, knowledges, context = db_client.get_checkpoint(
             agent_id)
-        result = dict()
+        if not main_agent_config:
+            return JsonResponse({
+                "success": False,
+                "error_code":  error_codes.AGENT_NOT_FOUND.code}, safe=False)
+        result = {
+            "success": True,
+            "main_agent_config": dict(),
+            "memory_units": [],
+            "knowledges": [],
+            "context": ""
+        }
         if main_agent_config:
             result["main_agent_config"] = main_agent_config
-        if helper_agent_configs:
-            result["helper_agent_configs"] = helper_agent_configs
         if memory_units:
             result["memory_units"] = memory_units
         if knowledges:
             result["knowledges"] = knowledges
         if context:
             result["context"] = context
+        print("returning checkpoint", result)
         return JsonResponse(result, safe=False)
     except Exception as e:
+        print("there is an exeption", e)
         return HttpResponseBadRequest(str(e))
 
 
 @csrf_exempt
 @require_http_methods("GET")
-@verify_token
-def list_agents(request, **kwargs):
-    try:
-        user_id = kwargs["user_id"]
-        result = db_client.get_agents_of_user(user_id)
-        return JsonResponse(result, safe=False)
-    except Exception as e:
-        return HttpResponseBadRequest(str(e))
-
-
-@csrf_exempt
-@require_http_methods("GET")
-@verify_token
 def get_longterm_memory(request, agent_id: int, **kwargs):
     try:
         page_number = int(request.GET.get('page_number', "0"))
@@ -151,7 +96,6 @@ def get_longterm_memory(request, agent_id: int, **kwargs):
 
 @csrf_exempt
 @require_http_methods("PUT")
-@verify_token
 def update_longterm_memory(request, agent_id: int, **kwargs):
     try:
         data = json.loads(request.body)
@@ -165,18 +109,15 @@ def update_longterm_memory(request, agent_id: int, **kwargs):
 
 @csrf_exempt
 @require_http_methods("PUT")
-@verify_token
-def update_checkpoint(request, agent_id: int, **kwargs):
+def update_checkpoint(request, agent_id: str, **kwargs):
     try:
-        user_id = kwargs["user_id"]
         data = json.loads(request.body)
         agent_config = data['agent_config']
-        helper_agent_configs = data['helper_agent_configs']
         memory_data = data["memory_data"]
         knowledge = data['knowledge']
         context = data['context']
-        db_client.update_checkpoint(
-            agent_config, helper_agent_configs, memory_data, knowledge, context, user_id, agent_id)
+        db_client.update_checkpoint(agent_id,
+                                    agent_config, memory_data, knowledge, context)
         return JsonResponse({'status': 'success'})
     except Exception as e:
         return HttpResponseBadRequest(str(e))
@@ -184,7 +125,6 @@ def update_checkpoint(request, agent_id: int, **kwargs):
 
 @csrf_exempt
 @require_http_methods("PUT")
-@verify_token
 def save_knowledge(request, collection_name: str, **kwargs):
     try:
         data = json.loads(request.body)
@@ -215,7 +155,6 @@ def search_commands(request, collection_name):
 
 @csrf_exempt
 @require_http_methods("GET")
-@verify_token
 def search_knowledge(request, collection_name: str, **kwargs):
     try:
         # query_embeds = request.GET.get('query_embeds', [])
@@ -234,7 +173,6 @@ def search_knowledge(request, collection_name: str, **kwargs):
 
 @csrf_exempt
 @require_http_methods("GET")
-@verify_token
 def get_recent_knowledge(request, collection_name: str, **kwargs):
     try:
         # query_embeds = request.GET.get('query_embeds', [])
@@ -250,7 +188,6 @@ def get_recent_knowledge(request, collection_name: str, **kwargs):
 
 @csrf_exempt
 @require_http_methods("GET")
-@verify_token
 def search_kg(request, collection_name: str, **kwargs):
     try:
         # query_embeds = request.GET.get('query_embeds', [])
@@ -261,6 +198,35 @@ def search_kg(request, collection_name: str, **kwargs):
             raise ValueError(f"query embeds value invalid")
         result = kg_client.keyword_search(
             query_embeds, collection_name)
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        print(e)
+        return HttpResponseBadRequest(str(e))
+
+
+@csrf_exempt
+@require_http_methods("PUT")
+def register_agent(request, **kwargs):
+    try:
+        data = json.loads(request.body)
+        agent_id = data['agent_id']
+        if not agent_id:
+            raise ValueError(f"agent id empty")
+        result = db_client.register_agent(agent_id)
+        return JsonResponse({
+            "exists": result
+        }, safe=False)
+    except Exception as e:
+        print(e)
+        return HttpResponseBadRequest(str(e))
+
+
+@csrf_exempt
+@require_http_methods("GET")
+def all_agents(request):
+    try:
+        agent_ids_bytes = db_client.all_agents()
+        result = [id_bytes.decode() for id_bytes in agent_ids_bytes]
         return JsonResponse(result, safe=False)
     except Exception as e:
         print(e)

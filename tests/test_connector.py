@@ -40,7 +40,7 @@ def TestGetCheckpointSuccess(connector: Connector):
 
 
 def TestListAgentsSuccess(connector: Connector):
-    print("agent ids are", connector.list_agents())
+    print("agent ids are", connector.all_agents())
 
 
 def TestGetLongtermMemorySuccess(connector: Connector):
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     # })
     # assert user_id == 1
     # agent_id = connector._db_client.create_agent(user_id)
-    # agents = connector.list_agents(user_id)
+    # agents = connector.all_agents(user_id)
     # print("agents are", agents)
     # selected_agent_id = agents[0]["id"]
     # connector.connect(selected_agent_id)

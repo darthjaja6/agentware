@@ -20,16 +20,14 @@ from server import views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("get_token/<str:api_key>", views.get_token, name='get_token'),
     path('create_agent', views.create_agent, name='create_agent'),
-    path('list_agents', views.list_agents, name='list_agents'),
     path('get_longterm_memory/<int:agent_id>', views.get_longterm_memory,
          name='get_longterm_memory'),
     path('update_longterm_memory/<int:agent_id>', views.update_longterm_memory,
          name='update_longterm_memory'),
-    path('update_checkpoint/<int:agent_id>',
+    path('update_checkpoint/<str:agent_id>',
          views.update_checkpoint, name='update_checkpoint'),
-    path('get_checkpoint/<int:agent_id>/',
+    path('get_checkpoint/',
          views.get_checkpoint, name='get_checkpoint'),
     path('save_knowledge/<str:collection_name>',
          views.save_knowledge, name='save_knowledge'),
@@ -40,5 +38,9 @@ urlpatterns = [
     path('get_recent_knowledge/<str:collection_name>',
          views.get_recent_knowledge, name='get_recent_knowledge'),
     path('search_kg/<str:collection_name>',
-         views.search_kg, name='search_kg')
+         views.search_kg, name='search_kg'),
+    path('register_agent',
+         views.register_agent, name='register_agent'),
+    path('all_agents',
+         views.all_agents, name='all_agents')
 ]

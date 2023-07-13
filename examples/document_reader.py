@@ -13,5 +13,5 @@ connector = Connector({
     # "endpoint": "https://demo.agentware.ai/api/v0"
     "endpoint": "http://localhost:8000"
 })
-print("Public agents are", connector.list_agents())
+print("Public agents are", connector.all_agents())
 agent = Agent.from_connector(1, connector)
