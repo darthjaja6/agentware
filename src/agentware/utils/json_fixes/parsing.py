@@ -4,7 +4,6 @@ from __future__ import annotations
 import contextlib
 import json
 from typing import Any, Dict, Union
-from colorama import Fore
 from regex import regex
 from agentware.utils.json_fixes.auto_fix import fix_json
 from agentware.utils.json_fixes.bracket_termination import balance_braces
@@ -160,8 +159,7 @@ def attempt_to_fix_json_by_finding_outermost_brackets(json_string: str):
             # Extract the valid JSON object from the string
             json_string = json_match.group(0)
             logger.typewriter_log(
-                title="Apparently json was fixed.", title_color=Fore.GREEN
-            )
+                title="Apparently json was fixed.")
             if CFG.speak_mode and debug_mode:
                 say_text("Apparently json was fixed.")
         else:

@@ -29,14 +29,9 @@ db_client = DbClient(config["redis_db_config"])
 
 
 @csrf_exempt
-@require_http_methods("PUT")
-def create_agent(request, **kwargs):
-    try:
-        user_id = kwargs["user_id"]
-        result = db_client.create_agent(user_id)
-        return JsonResponse({'agent_id': result})
-    except Exception as e:
-        return HttpResponseBadRequest(str(e))
+@require_http_methods("GET")
+def ping(request, **kwargs):
+    return JsonResponse({'response': "pong"})
 
 
 @csrf_exempt

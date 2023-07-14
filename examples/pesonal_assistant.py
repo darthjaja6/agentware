@@ -7,7 +7,7 @@ from agentware.hub import register_agent, push
 from agentware.agent import Agent
 
 if __name__ == '__main__':
-    agentware.endpoint = "https://localhost:8000"
+    agentware.endpoint = "https://localhost:8741"
     agentware.openai_api_key = "your openai api key"
     agent = Agent()
     agent.register("personal assistant")

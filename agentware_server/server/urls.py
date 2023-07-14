@@ -20,7 +20,7 @@ from server import views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path('create_agent', views.create_agent, name='create_agent'),
+    path('ping', views.ping, name='ping'),
     path('get_longterm_memory/<int:agent_id>', views.get_longterm_memory,
          name='get_longterm_memory'),
     path('update_longterm_memory/<int:agent_id>', views.update_longterm_memory,

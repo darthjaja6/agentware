@@ -11,7 +11,7 @@ logger = Logger()
 
 connector = Connector({
     # "endpoint": "https://demo.agentware.ai/api/v0"
-    "endpoint": "http://localhost:8000"
+    "endpoint": "http://localhost:8741"
 })
 print("Public agents are", connector.all_agents())
 agent = Agent.from_connector(1, connector)
