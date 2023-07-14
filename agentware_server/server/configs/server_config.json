@@ -1,22 +1,23 @@
 {
+    "auth_secret_key": "my-secret-key",
     "vector_db_config": {
-        "uri": "vector db ip",
+        "uri": "130.211.121.33",
         "port": "19530",
         "user": "admin",
         "secure": "True",
         "nprobe": "32",
         "nlist": "1024",
-        "collection_name": "The default collection name",
+        "collection_name": "test",
         "limit_distance": "1"
     },
     "redis_db_config": {
         "username": "admin",
-        "ip": "127.0.0.1",
+        "ip": "redis",
         "port": "6379",
-        "auth_secret_key": "the secret key for connecting to redis"
+        "auth_secret_key": "some private key"
     },
     "neo4j": {
-        "uri": "bolt://<neo4j ip>:<port>",
+        "uri": "bolt://knowledge-graph:7687",
         "auth": ["neo4j", "12345678"]
     }
 }

@@ -7,13 +7,13 @@ services:
       - .:/app
     ports:
       - 8741:8888
-    # depends_on:
-    #   - redis
-    #   - vector-db
-    #   - neo4j
+    depends_on:
+      - redis
+      # - vector-db
+      # - neo4j
 
-  # redis:
-  #   image: redis:6.2.4
+  redis:
+    image: redis:6.2.4
 
   # etcd:
   #   container_name: milvus-etcd

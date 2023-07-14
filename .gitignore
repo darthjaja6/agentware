@@ -19,7 +19,6 @@ src/build
 
 # Credentials
 **/.env
-**/server/configs/*.json
 
 # server generated files
 **/logs*
