@@ -6,7 +6,7 @@ from agentware import hub
 from agentware.base import OneshotAgent, Connector
 from agentware.agent import Agent
 from agentware.agent_logger import Logger
-from tests.utils import DbClient
+from utils import DbClient
 logger = Logger()
 
 TEST_CFG = {
@@ -22,13 +22,16 @@ class AgentTests(unittest.TestCase):
         cls.db_client = DbClient()
 
     def setUp(self):
-        self.db_client = DbClient()
+        print("before flushing", self.db_client.client.keys())
+        print("flushing db...")
+        self.db_client.client.flushall()
+        print("after flushing", self.db_client.client.keys())
 
     def tearDown(self):
-        self.db_client.client.flushall()
+        pass
 
     def test_register_agent(self):
-        agent_id = "some agent id"
+        agent_id = "some agent idz"
         hub.register_agent(agent_id)
         agent_ids = hub.list_agents()
         assert agent_ids[0] == agent_id

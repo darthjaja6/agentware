@@ -5,12 +5,13 @@ from agentware.agent_logger import Logger
 import copy
 import time
 import json
+import os
 
 logger = Logger()
 
 
 class Memory():
-    HELPER_AGENT_CONFIGS_DIR = "agentware/base_agent_configs"
+    HELPER_AGENT_CONFIGS_DIR_NAME = "base_agent_configs"
     MAX_NUM_TOKENS_CONTEXT = 1000
     MAX_NUM_TOKENS_MEMORY = 1000
     MAX_NUM_TOKENS_KNOWLEDGE = 200
@@ -57,11 +58,13 @@ class Memory():
         return memory
 
     def create_helper_agents(self) -> Dict[str, OneshotAgent]:
-        facts_agent_config_path = f"{self.HELPER_AGENT_CONFIGS_DIR}/facts.json"
-        ref_q_agent_config_path = f"{self.HELPER_AGENT_CONFIGS_DIR}/reflection_question.json"
-        ref_agent_config_path = f"{self.HELPER_AGENT_CONFIGS_DIR}/reflection.json"
-        summarize_agent_config_path = f"{self.HELPER_AGENT_CONFIGS_DIR}/summarize.json"
-        tool_query_agent_config_path = f"{self.HELPER_AGENT_CONFIGS_DIR}/tool_query.json"
+        config_dir_absolute_path = os.path.join(os.path.dirname(
+            os.path.abspath(__file__)), self.HELPER_AGENT_CONFIGS_DIR_NAME)
+        facts_agent_config_path = f"{config_dir_absolute_path}/facts.json"
+        ref_q_agent_config_path = f"{config_dir_absolute_path}/reflection_question.json"
+        ref_agent_config_path = f"{config_dir_absolute_path}/reflection.json"
+        summarize_agent_config_path = f"{config_dir_absolute_path}/summarize.json"
+        tool_query_agent_config_path = f"{config_dir_absolute_path}/tool_query.json"
 
         agents = dict()
         fact_agent_config = None
