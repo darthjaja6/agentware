@@ -88,12 +88,12 @@ jobs:
           docker-compose build
           docker-compose up -d
 
-    - name: Wait for server to start
-      run: |
-        until $(curl --output /dev/null --silent --head --fail http://localhost:8741/ping); do
-          echo "Waiting for server to start..."
-          sleep 5
-        done
+      - name: Wait for server to start
+        run: |
+          until $(curl --output /dev/null --silent --head --fail http://localhost:8741/ping); do
+            echo "Waiting for server to start..."
+            sleep 5
+          done
 
       - name: Run external tests
         run: |
