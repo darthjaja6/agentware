@@ -12,10 +12,10 @@ if __name__ == '__main__':
     agent = Agent()
     agent.register("personal assistant")
     agent.set_config({
-        "description": "You are a personal assistant who knows the master's life details and can give assistant"
+        "description": "You are a personal assistant who knows the master's life details and can give assistance"
     })
-    with agent.learn():
-        print(agent.run("I have a bottle of water on the seconds floor"))
+    with agent.update():
+        print(agent.run("I have a bottle of water on the second floor"))
         print(agent.run("Where can I get some water?"))
         print(agent.run("Then John took away the bottle"))
         print(agent.run("Where can I get something to drink?"))

@@ -1,4 +1,10 @@
 import redis
+from agentware.core_engines import CoreEngineBase
+
+
+class EchoCoreEngine(CoreEngineBase):
+    def run(self, prompt):
+        return f"An echo of {prompt}"
 
 
 class DbClient:

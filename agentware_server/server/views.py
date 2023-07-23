@@ -43,7 +43,7 @@ def get_checkpoint(request, **kwargs):
             return JsonResponse({
                 "success": False,
                 "error_code": error_codes.INVALID_AGENT_ID})
-        main_agent_config, memory_units, knowledges, context = db_client.get_checkpoint(
+        main_agent_config, memory_units, context = db_client.get_checkpoint(
             agent_id)
         if not main_agent_config:
             return JsonResponse({
@@ -53,18 +53,12 @@ def get_checkpoint(request, **kwargs):
             "success": True,
             "main_agent_config": dict(),
             "memory_units": [],
-            "knowledges": [],
             "context": ""
         }
         if main_agent_config:
             result["main_agent_config"] = main_agent_config
         if memory_units:
             result["memory_units"] = memory_units
-        if knowledges:
-            result["knowledges"] = knowledges
-        if context:
-            result["context"] = context
-        print("returning checkpoint", result)
         return JsonResponse(result, safe=False)
     except Exception as e:
         print("there is an exeption", e)
@@ -109,10 +103,9 @@ def update_checkpoint(request, agent_id: str, **kwargs):
         data = json.loads(request.body)
         agent_config = data['agent_config']
         memory_data = data["memory_data"]
-        knowledge = data['knowledge']
         context = data['context']
         db_client.update_checkpoint(agent_id,
-                                    agent_config, memory_data, knowledge, context)
+                                    agent_config, memory_data, context)
         return JsonResponse({'status': 'success'})
     except Exception as e:
         return HttpResponseBadRequest(str(e))

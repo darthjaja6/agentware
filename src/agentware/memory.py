@@ -16,45 +16,43 @@ class Memory():
     MAX_NUM_TOKENS_MEMORY = 1000
     MAX_NUM_TOKENS_KNOWLEDGE = 200
 
-    def __init__(self):
+    def __init__(self, agent: BaseAgent):
         self._helper_agents = self.create_helper_agents()
         self._reflections = []
         self._commands = []
         self._domain_knowledge = []
         self._memory = []
-        self._context = []
+        self._context = ""
         self._num_tokens_memory = 0
         self._num_tokens_context = 0
         self._num_tokens_domain_knowledge = 0
-        self._main_agent_config = dict()
+        self._agent = agent
         self.agent_id = None
         self.connector = Connector()
 
     @classmethod
-    def fetch(cls, agent_id: int):
+    def pull(cls, agent_id: int, agent):
         connector = Connector()
         try:
-            agent_config, memory_data, domain_knowledge, context = connector.get_checkpoint(
+            agent_config, memory_data, context = connector.get_checkpoint(
                 agent_id)
 
-            memory = cls.init(agent_config, context,
-                              domain_knowledge, memory_data)
+            memory = cls.init(agent_config, context, memory_data, agent)
         except Exception as e:
             raise e
         return memory
 
     @classmethod
     def init(cls,
-             main_agent_config: Dict[any, any],
+             agent_config: Dict[any, any],
              context: str,
-             work_experience: List[Knowledge],
-             working_memory: List[MemoryUnit]):
+             working_memory: List[MemoryUnit],
+             agent: BaseAgent):
         logger.debug("initializing memory")
-        memory = cls()
-        memory.set_main_agent_config(main_agent_config)
+        memory = cls(agent)
         memory._context = context
-        memory._work_experience = work_experience
         memory._memory = working_memory
+        agent.set_config(agent_config)
         return memory
 
     def create_helper_agents(self) -> Dict[str, OneshotAgent]:
@@ -92,12 +90,6 @@ class Memory():
             tool_query_agent_config = json.loads(f.read())
         agents["tool_query"] = OneshotAgent(tool_query_agent_config)
         return agents
-
-    def get_main_agent_config(self) -> Dict[str, any]:
-        return self._main_agent_config
-
-    def set_main_agent_config(self, config: Dict[str, any]):
-        self._main_agent_config = config
 
     def get_num_tokens_memory(self):
         return self._num_tokens_memory
@@ -145,25 +137,27 @@ class Memory():
         logger.debug(answers)
 
     def get_query_term(self, seed) -> str:
+        """ Extract search keywords from the query sentence.
+        """
         return self._helper_agents["tool_query"].run(seed)
 
-    def prepare_run(self, prompt_prefix: str, prompt: str):
+    def update_context(self, prompt_prefix: str, prompt: str):
         logger.info(
-            f"Preparing for running prompt {prompt}\n and prefix {prompt_prefix}")
-        super().prepare_run(prompt_prefix, prompt)
+            f"Preparing for running prompt {prompt} and prefix {prompt_prefix}")
         # Get relevant knowledge
         keyword = self.get_query_term(prompt)
         logger.debug(f"search keywords for knowledge retrieval: {keyword}")
         new_knowledges = []
         if keyword:
             new_knowledges = self.connector.search_knowledge(
-                self.agent_id, keyword, token_limit=self.MAX_NUM_TOKENS_DOMAIN_KNOWLEDGE)
+                self.agent_id, keyword, token_limit=self.MAX_NUM_TOKENS_KNOWLEDGE)
+            logger.debug(f"Updated new knowledge to {new_knowledges}")
         else:
             logger.debug(
                 "Keyword is empty, fetching most recent knowledge instead")
             new_knowledges = self.connector.get_recent_knowledge(
                 self.agent_id)
-            self.update_knowledge(new_knowledges)
+        self.update_knowledge(new_knowledges)
         # query for commands
         # self._commands = self.connector.search_commands(keyword)
         print("domain knowledges are", self._domain_knowledge)
@@ -171,12 +165,9 @@ class Memory():
 
     def reflect(self, memory_text, context=None) -> List[Knowledge]:
         # context gives information on what job the agent is doing.
-        logger.debug("Making reflection from")
-        logger.debug(memory_text)
+        logger.debug(f"Making reflection from {memory_text}")
         # Make reflection on compressed memory
         # Step1: Extract facts.
-        # TODO: 解决first name / last name -> full name的问题
-        # 发现facts和reflection比较冗余。暂时只保留reflection了
         facts = self._helper_agents["fact"].run(
             f"```{memory_text}```, extract all facts and insights concisely from the text above and make sure each fact has clear meaning if viewed independently. Each fact should not exceed 10 tokens.")
         facts = [f["subject_concept"] + " " + f["fact"] for f in facts]
@@ -233,7 +224,7 @@ class Memory():
     def update_check_point(self):
         self.connector.update_checkpoint(
             self.agent_id,
-            self._main_agent_config,
+            self._agent._config,
             self._memory,
             self._domain_knowledge,
             self._context)
@@ -254,7 +245,13 @@ class Memory():
     def delete_memory(self, memory_index: int):
         if memory_index >= len(self._memory):
             logger.debug(
-                f"Deleting index {memory_index} out of range of 0-{len(self._memory - 1)}")
+                f"Deleting index {memory_index} out of range of 0-{len(self._memory)-1}")
+            return
+        if memory_index < 0:
+            if memory_index + len(self._memory) - 1 < 0:
+                logger.debug(
+                    f"Deleting index {memory_index} out of range of 0-{len(self._memory)-1}")
+                return
         self._num_tokens_memory -= self._memory[memory_index].num_tokens
         del self._memory[memory_index]
 
@@ -269,7 +266,6 @@ class Memory():
                 ';'.join([c.to_prompt() for c in self._commands])
             }```"""
         commands_str = ""
-        logger.debug(f"context is { self._context}")
         return [
             {
                 "role": "system",
@@ -305,14 +301,8 @@ class Memory():
         return self.__str__()
 
     def __deepcopy__(self, memodict={}):
-        #          main_agent_config: Dict[any, any],
-        #  agents: Dict[str, BaseAgent],
-        #  context: str,
-        #  work_experience: List[Knowledge],
-        #  memory: List[MemoryUnit],
-        #  connector: BaseConnector):
-        cpyobj = type(self)(self._main_agent_config, self._helper_agents, self._context,
-                            self._domain_knowledge, self._memory, self.connector)  # shallow copy of whole object
+        cpyobj = type(self).init(self._agent._config, self._context,
+                                 self._memory, self._agent)  # shallow copy of whole object
         cpyobj._domain_knowledge = copy.deepcopy(
             self._domain_knowledge, memodict)
         cpyobj._commands = copy.deepcopy(

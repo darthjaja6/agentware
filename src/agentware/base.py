@@ -1,3 +1,11 @@
+from agentware.utils.json_fixes.parsing import fix_and_parse_json
+from agentware.utils.json_validation.validate_json import validate_json
+from typing import List, Dict
+from agentware.utils.num_token_utils import count_message_tokens
+from agentware.core_engines import OpenAICoreEngine
+from datetime import datetime
+from agentware.agent_logger import Logger
+from pymilvus import Milvus, connections, utility
 import os
 import time
 import json
@@ -8,13 +16,7 @@ import copy
 
 from typing import List, Dict, Tuple
 from pymilvus import Collection, DataType, FieldSchema, CollectionSchema
-from pymilvus import Milvus, connections, utility
-from agentware.agent_logger import Logger
-from datetime import datetime
-from agentware.utils.num_token_utils import count_message_tokens
-from typing import List, Dict
-from agentware.utils.json_validation.validate_json import validate_json
-from agentware.utils.json_fixes.parsing import fix_and_parse_json
+
 
 logger = Logger()
 
@@ -35,7 +37,7 @@ class Command:
         self.description = description
         self.endpoint = endpoint
         self.input_schema = input_schema
-        self.output_schema = output_schema
+        self._output_schema = output_schema
         self.created_at = int(time.time())\
 
 
@@ -118,11 +120,16 @@ class BaseAgent:
         - config initialization
         - parse and retry
     """
-    MODEL_NAME = "gpt-3.5-turbo"
+    MODEL_NAME = "gpt-3.5-turbo-16k-0613"
     MAX_NUM_RETRIES = 3
 
     def __init__(self):
         self._config = None
+        self._format_instruction = ""
+        self._output_schema = ""
+        self._prompt_prefix = ""
+        self._format_examples = ""
+        self._core_engine = OpenAICoreEngine()
 
     @classmethod
     def init(cls, cfg: Dict[str, any]):
@@ -131,21 +138,39 @@ class BaseAgent:
             raise Exception("Invalid config")
         if (not cfg["name"]):
             raise Exception("config missing required entry {cfg}")
-        agent._config = cfg
+        agent.set_config(cfg)
+        return agent
+
+    def set_core_engine(self, core_engine):
+        self._core_engine = core_engine
+
+    def set_config(self, cfg: Dict[str, any]):
+        self._config = cfg
         # output format
         if "output_format" in cfg:
-            agent.format_instruction = None
+            self._format_instruction = ""
             if "instruction" in cfg["output_format"]:
-                agent.format_instruction = cfg["output_format"]["instruction"]
-            agent.output_schema = None
+                self._format_instruction = cfg["output_format"]["instruction"]
+            self._output_schema = ""
             if "output_schema" in cfg["output_format"]:
-                agent.output_schema = cfg["output_format"]["output_schema"]
-            agent.termination_observation = None
+                self._output_schema = cfg["output_format"]["output_schema"]
+            if "examples" in cfg["output_format"]:
+                self._format_examples = ""
+                for example in cfg["output_format"]["examples"]:
+                    example_output = example["output"]
+                    if example["condition"]:
+                        condition = example["condition"]
+                        self._format_examples += f"In the case of {condition}, output in the form of {example_output}"
+                    else:
+                        self._format_examples += f"Output in the form of {example_output}"
+                        # Empty condition means one output format for all cases
+                        break
+            self._format_instruction += self._format_examples
+            self._termination_observation = ""
             if "termination_observation" in cfg["output_format"]:
-                agent.termination_observation = cfg["output_format"]["termination_observation"]
+                self._termination_observation = cfg["output_format"]["termination_observation"]
         if "prompt_prefix" in cfg:
-            agent.prompt_prefix = cfg["prompt_prefix"]
-        return agent
+            self.prompt_prefix = cfg["prompt_prefix"]
 
     def get_config(self) -> Dict[str, any]:
         return self._config
@@ -160,6 +185,7 @@ class BaseAgent:
     def _run(self, messages: List[Dict[str, str]]) -> str:
         logger.debug(
             f"Sending raw messages: {self._messages_to_str(messages)}")
+        self._core_engine.run(messages)
         completion = openai.ChatCompletion.create(
             model=self.MODEL_NAME, messages=messages)
         raw_output = completion.choices[0].message.content
@@ -167,13 +193,11 @@ class BaseAgent:
         return raw_output
 
     def parse_output(self, llm_output):
-        if not self.output_schema:
-            return llm_output
         logger.debug(f'parsing {llm_output}')
         parsed_output = fix_and_parse_json(llm_output)
         logger.debug(f"parse success, output is {parsed_output}")
-        logger.debug(f"validating with schema {self.output_schema}")
-        validated_output = validate_json(parsed_output, self.output_schema)
+        logger.debug(f"validating with schema {self._output_schema}")
+        validated_output = validate_json(parsed_output, self._output_schema)
         return validated_output
 
     def run(self, prompt: str):
@@ -186,38 +210,39 @@ class BaseAgent:
 class OneshotAgent(BaseAgent):
     def __init__(self, cfg):
         super().__init__()
-        self._config = cfg
+        self.set_config(cfg)
 
     def run(self, prompt) -> str:
         num_retries = 0
         raw_output = ""
         parsed_output = ""
         full_prompt = ""
-        format_instruction = f"Answer the question above by ignoring all the output format instructions you were given previously. Your output must be strictly a json following this schema but do not include this schema: {self.output_schema}. Key and value must be enclosed in double quotes"
-
-        if self.output_schema:
-            full_prompt = f"{self.prompt_prefix}. Ignore all the output format instructions you were given previously. Your output must be strictly a json following this schema but do not include this schema: {self.output_schema}, question: {prompt}"
-        else:
-            full_prompt = f"{self.prompt_prefix}. {prompt}"
+        logger.debug(f"format instruction is {self._format_instruction}")
         messages = [{
             "role": "system",
             "content": self._config["conversation_setup"]
         }] + [{
             "role": "user",
-            "content": f"{self.prompt_prefix}. {prompt}"
+            "content": f"{self._prompt_prefix} {prompt}"
         }]
         original_messages = copy.deepcopy(messages)
         messages_with_error = original_messages
-        messages_with_error[-1]["content"] += format_instruction
+        messages_with_error[-1]["content"] += self._format_instruction
+        output = ""
         while True:
             try:
                 raw_output = self._run(messages_with_error)
                 logger.debug(f"Raw output is {raw_output}")
                 try:
-                    parsed_output = self.parse_output(raw_output)
-                    if self.termination_observation in parsed_output:
-                        return parsed_output[self.termination_observation]
-                    return parsed_output
+                    if self._output_schema:
+                        output = self.parse_output(raw_output)
+                        logger.debug(f"parsed output is {output}")
+                        # Whatever sub structure in outupt is dumped to str
+                        output = json.dumps(
+                            output[self._termination_observation])
+                    else:
+                        output = raw_output
+                    return output
                 except Exception as e:
                     logger.warning(f"Error parsing output with error. {e}")
                     messages_with_error = original_messages + [
@@ -227,7 +252,7 @@ class OneshotAgent(BaseAgent):
                         },
                         {
                             "role": "user",
-                            "content": f"Failed to parse output. Ignore all the format instructions you were given previously. Your output must be a json that strictly follow the schema while not including it {self.output_schema}"
+                            "content": f"Failed to parse output. Ignore all the format instructions you were given previously. Your output must be a json that strictly follow the schema while not including it {self._output_schema}"
                         },
                     ]
             except Exception as e:
@@ -237,7 +262,7 @@ class OneshotAgent(BaseAgent):
                     logger.debug("Max number of retries exceeded")
                 break
             num_retries += 1
-        return parsed_output
+        return output
 
 
 class BaseMilvusStore():
@@ -460,14 +485,13 @@ class Connector():
             main_agent_config = data["main_agent_config"]
             memory_units = [MemoryUnit.from_json(
                 m) for m in data["memory_units"]]
-            knowledges = [Knowledge.from_json(
-                k) for k in data["knowledges"]]
             context = data["context"]
-            return main_agent_config, memory_units, knowledges, context
+            return main_agent_config, memory_units, context
         else:
+            print("response is", response.text)
             # Request failed
             logger.debug(
-                f'Request failed with status code: {response.status_code}')
+                f'Request failed with code: {response.status_code} error: {response.text}')
             return None
 
     def save_knowledge(self, agent_id: int, knowledges: List[Knowledge]):
