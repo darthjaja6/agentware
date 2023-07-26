@@ -6,18 +6,27 @@ from typing import Union, Dict, List
 
 
 class CoreEngineBase():
+    def get_embeds(self, text: str):
+        raise BaseException("Not implemented")
+
     def run(self, messages: List[Dict[str, str]]):
         raise BaseException("Not implemented")
 
 
 class OpenAICoreEngine(CoreEngineBase):
-    def __init__(self, model="gpt-3.5-turbo"):
+    def __init__(self, model="gpt-3.5-turbo", embed_model="text-embedding-ada-002"):
         super().__init__()
         self.model = model
+        self.embed_model = embed_model
+
+    def get_embeds(self, text) -> List[float]:
+        text = text.replace("\n", " ")
+        return openai.Embedding.create(input=[text], model=self.embed_model)['data'][0]['embedding']
 
     def run(self, messages: List[Dict[str, str]]):
-        return openai.ChatCompletion.create(
+        completion = openai.ChatCompletion.create(
             model=self.model, messages=messages)
+        return completion.choices[0].message.content
 
 
 class LangchainCoreEngine(CoreEngineBase):

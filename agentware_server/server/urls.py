@@ -42,5 +42,7 @@ urlpatterns = [
     path('register_agent',
          views.register_agent, name='register_agent'),
     path('all_agents',
-         views.all_agents, name='all_agents')
+         views.all_agents, name='all_agents'),
+    path('remove_knowledge',
+         views.remove_knowledge, name='remove_knowledge')
 ]

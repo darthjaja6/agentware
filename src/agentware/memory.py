@@ -1,6 +1,7 @@
 from typing import Dict, List, Tuple
 from agentware.base import MemoryUnit, Knowledge, Connector, OneshotAgent, BaseAgent
 from agentware.agent_logger import Logger
+from agentware import HELPER_AGENT_CONFIGS_DIR_NAME
 
 import copy
 import time
@@ -11,7 +12,6 @@ logger = Logger()
 
 
 class Memory():
-    HELPER_AGENT_CONFIGS_DIR_NAME = "base_agent_configs"
     MAX_NUM_TOKENS_CONTEXT = 1000
     MAX_NUM_TOKENS_MEMORY = 1000
     MAX_NUM_TOKENS_KNOWLEDGE = 200
@@ -57,12 +57,13 @@ class Memory():
 
     def create_helper_agents(self) -> Dict[str, OneshotAgent]:
         config_dir_absolute_path = os.path.join(os.path.dirname(
-            os.path.abspath(__file__)), self.HELPER_AGENT_CONFIGS_DIR_NAME)
+            os.path.abspath(__file__)), HELPER_AGENT_CONFIGS_DIR_NAME)
         facts_agent_config_path = f"{config_dir_absolute_path}/facts.json"
         ref_q_agent_config_path = f"{config_dir_absolute_path}/reflection_question.json"
         ref_agent_config_path = f"{config_dir_absolute_path}/reflection.json"
         summarize_agent_config_path = f"{config_dir_absolute_path}/summarize.json"
         tool_query_agent_config_path = f"{config_dir_absolute_path}/tool_query.json"
+        conflict_resolver_agent_config_path = f"{config_dir_absolute_path}/conflict_resolver.json"
 
         agents = dict()
         fact_agent_config = None
@@ -89,6 +90,11 @@ class Memory():
         with open(tool_query_agent_config_path, "r") as f:
             tool_query_agent_config = json.loads(f.read())
         agents["tool_query"] = OneshotAgent(tool_query_agent_config)
+        conflict_resolver_agent_config = None
+        with open(conflict_resolver_agent_config_path, "r") as f:
+            conflict_resolver_agent_config = json.loads(f.read())
+        agents["conflict_resolver"] = OneshotAgent(
+            conflict_resolver_agent_config)
         return agents
 
     def get_num_tokens_memory(self):
@@ -150,7 +156,7 @@ class Memory():
         new_knowledges = []
         if keyword:
             new_knowledges = self.connector.search_knowledge(
-                self.agent_id, keyword, token_limit=self.MAX_NUM_TOKENS_KNOWLEDGE)
+                self.agent_id, self._agent.get_embeds(keyword), token_limit=self.MAX_NUM_TOKENS_KNOWLEDGE)
             logger.debug(f"Updated new knowledge to {new_knowledges}")
         else:
             logger.debug(
@@ -159,7 +165,7 @@ class Memory():
                 self.agent_id)
         self.update_knowledge(new_knowledges)
         # query for commands
-        # self._commands = self.connector.search_commands(keyword)
+        # self._commands = self.connector.search_commands(self._agent.get_embeds(keyword))
         print("domain knowledges are", self._domain_knowledge)
         # print("commands are", self._commands)
 
@@ -172,8 +178,20 @@ class Memory():
             f"```{memory_text}```, extract all facts and insights concisely from the text above and make sure each fact has clear meaning if viewed independently. Each fact should not exceed 10 tokens.")
         facts = [f["subject_concept"] + " " + f["fact"] for f in facts]
         logger.debug(facts)
-        knowledges = [Knowledge(int(time.time()), fact) for fact in facts]
-        return knowledges
+        new_knowledges = [Knowledge(int(time.time()), fact) for fact in facts]
+        # Get keywords from memory text
+        keyword = self.get_query_term(memory_text)
+        relevant_knowledges = self.connector.search_knowledge(
+            self.agent_id, self._agent.get_embeds(keyword), token_limit=self.MAX_NUM_TOKENS_KNOWLEDGE)
+        # Compare the facts in memory with the relevant knowledge, mark the ones that need to be updated
+        knowledge_ids_to_remove = []
+        observations_old_facts = {
+            "observations": facts,
+            "facts": relevant_knowledges
+        }
+        knowledge_ids_to_remove = self._helper_agents["conflict_resolver"].run(
+            json.dumps(observations_old_facts))
+        return new_knowledges, knowledge_ids_to_remove
 
     def _compress_memory(self, reflect=False) -> Tuple[List[MemoryUnit], List[Knowledge]]:
         """ Compress memory and maybe do reflection
@@ -211,9 +229,20 @@ class Memory():
         self.num_tokens_memory = num_tokens_not_compressed + compressed_memory.num_tokens
         logger.info("memory after compressing is")
         logger.info(self.__str__())
-        reflections = self.reflect(memory_text)
+        reflections, ids_to_remove = self.reflect(memory_text)
+        # Remove knowledges
+        logger.debug(f"Removing ids {ids_to_remove} from knowledge base")
+        try:
+            self.connector.remove_knowledge(self.agent_id, ids_to_remove)
+        except Exception as e:
+            logger.warning(f"Failed to remove ids with error {e}")
         # Save checkpoint and add to knowledge
         if self.connector:
+            for i, knowledge in enumerate(reflections):
+                if knowledge.embeds:
+                    continue
+                embeds = self._agent.get_embeds(knowledge.content)
+                reflections[i].update_embeds(embeds)
             self.connector.save_knowledge(self.agent_id, reflections)
             self.connector.update_longterm_memory(
                 self.agent_id, memory_to_compress)

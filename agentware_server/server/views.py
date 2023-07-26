@@ -210,6 +210,27 @@ def register_agent(request, **kwargs):
 
 
 @csrf_exempt
+@require_http_methods("PUT")
+def remove_knowledge(request, **kwargs):
+    try:
+        data = json.loads(request.body)
+        if not "collection_name" in data:
+            raise ValueError(f"no collection name")
+        if not "ids_to_remove" in data:
+            raise ValueError(f"ids to remove is empty")
+        collection_name = data['collection_name']
+        ids = data['ids_to_remove']
+        if not collection_name:
+            raise ValueError(f"collection name empty")
+        knowledge_base_client.remove_by_ids(ids, collection_name)
+        return JsonResponse({
+            "success": True
+        })
+    except Exception as e:
+        return HttpResponseBadRequest(str(e))
+
+
+@csrf_exempt
 @require_http_methods("GET")
 def all_agents(request):
     try:

@@ -82,10 +82,11 @@ class MemoryUnit:
 
 class Knowledge:
 
-    def __init__(self, created_at: int, content: str, embeds: List = []):
+    def __init__(self, created_at: int, content: str, embeds: List = [], id=""):
         self.created_at = int(created_at)
         self.content = content
         self.embeds = embeds
+        self.id = id
         self.num_tokens = count_message_tokens({
             "content": content
         })
@@ -93,15 +94,19 @@ class Knowledge:
     @classmethod
     def from_json(cls, knowledge_json: Dict):
         embeds = []
+        id = ""
         if "embeds" in knowledge_json:
             embeds = knowledge_json["embeds"]
-        return cls(knowledge_json["created_at"], knowledge_json["content"], embeds)
+        if 'id' in knowledge_json:
+            id = id
+        return cls(knowledge_json["created_at"], knowledge_json["content"], embeds, "")
 
     def to_json(self):
         return {
             "created_at": self.created_at,
             "content": self.content,
-            "embeds": self.embeds
+            "embeds": self.embeds,
+            "id": self.id
         }
 
     def _to_str(self, created_at: int, content: str) -> str:
@@ -143,6 +148,9 @@ class BaseAgent:
 
     def set_core_engine(self, core_engine):
         self._core_engine = core_engine
+
+    def get_embeds(self, text: str) -> List[float]:
+        return self._core_engine.get_embeds(text)
 
     def set_config(self, cfg: Dict[str, any]):
         self._config = cfg
@@ -186,9 +194,10 @@ class BaseAgent:
         logger.debug(
             f"Sending raw messages: {self._messages_to_str(messages)}")
         self._core_engine.run(messages)
-        completion = openai.ChatCompletion.create(
-            model=self.MODEL_NAME, messages=messages)
-        raw_output = completion.choices[0].message.content
+        raw_output = self._core_engine.run(messages)
+        # completion = openai.ChatCompletion.create(
+        #     model=self.MODEL_NAME, messages=messages)
+        # raw_output = completion.choices[0].message.content
         logger.debug(f"Raw output: {raw_output}")
         return raw_output
 
@@ -215,8 +224,6 @@ class OneshotAgent(BaseAgent):
     def run(self, prompt) -> str:
         num_retries = 0
         raw_output = ""
-        parsed_output = ""
-        full_prompt = ""
         logger.debug(f"format instruction is {self._format_instruction}")
         messages = [{
             "role": "system",
@@ -317,6 +324,11 @@ class BaseMilvusStore():
         except Exception as err:
             logger.debug("get err {}".format(err))
             return err
+
+    def remove_by_ids(self, ids_to_delete: List[int], collection_name: str):
+        c = Collection(collection_name)
+        expr = f"id in {ids_to_delete}"
+        c.delete(expr)
 
 
 class Connector():
@@ -498,11 +510,6 @@ class Connector():
         knowledge_base_identifier = self._get_knowledge_base_id(agent_id)
         logger.info(
             f"Saving knowledge: {knowledges} to knowledge base {knowledge_base_identifier}")
-        for i, knowledge in enumerate(knowledges):
-            if knowledge.embeds:
-                continue
-            embeds = self.get_embeds(knowledge.content)
-            knowledges[i].update_embeds(embeds)
         # URL to send the request to
         url = os.path.join(agentware.endpoint, "save_knowledge",
                            knowledge_base_identifier)
@@ -526,8 +533,7 @@ class Connector():
                 f'Request failed with status code: {response.status_code}')
             return None
 
-    def search_commands(self, keyword: str, token_limit=100) -> List[Command]:
-        query_embeds = self.get_embeds(keyword)
+    def search_commands(self, query_embeds: List[float], token_limit=100) -> List[Command]:
         # URL to send the request to
         url = os.path.join(agentware.endpoint, "search_commands",
                            self._get_command_hub_id())
@@ -553,8 +559,7 @@ class Connector():
             logger.debug(response.text)
             return None
 
-    def search_knowledge(self, agent_id: int, keyword: str, token_limit=100) -> List[Knowledge]:
-        query_embeds = self.get_embeds(keyword)
+    def search_knowledge(self, agent_id: int, query_embeds: List[float], token_limit=100) -> List[Knowledge]:
         # URL to send the request to
         url = os.path.join(agentware.endpoint, "search_knowledge",
                            self._get_knowledge_base_id(agent_id))
@@ -573,6 +578,36 @@ class Connector():
             data = json.loads(response.text)
             logger.debug(f"knowledge data is {data}")
             return [Knowledge.from_json(knowledge_json) for knowledge_json in data]
+        else:
+            # Request failed
+            logger.debug(
+                f'Request failed with status code: {response.status_code}')
+            logger.debug(response.text)
+            return None
+
+    def remove_knowledge(self, agent_id: int, ids_to_remove: List[int]):
+        knowledge_base_identifier = self._get_knowledge_base_id(agent_id)
+        # URL to send the request to
+        url = os.path.join(agentware.endpoint, "remove_knowledge")
+        # Send GET request
+        headers = {
+            'Authorization': f'Bearer {agentware.api_key}'
+        }
+        data = json.dumps({
+            "xx": 'yy',
+            "collection_name": knowledge_base_identifier,
+            "ids_to_remove": ids_to_remove
+        })
+        response = requests.put(url, headers=headers, data=data)
+        # Check the response status code
+        if response.status_code == 200:
+            logger.debug(f'Request to {url} was successful')
+            data = json.loads(response.text)
+            if "success" in data:
+                logger.debug(f"Removed ids success? {data}")
+                return data["success"]
+            else:
+                return False
         else:
             # Request failed
             logger.debug(
@@ -604,14 +639,7 @@ class Connector():
             logger.debug(response.text)
             return None
 
-    def get_embeds(self, text: str):
-        model = "text-embedding-ada-002"
-        text = text.replace("\n", " ")
-        logger.debug(f"Getting embedding of: {text}")
-        return openai.Embedding.create(input=[text], model=model)['data'][0]['embedding']
-
-    def search_kg(self, agent_id: int, keyword: str, token_limit=100) -> List[Knowledge]:
-        query_embeds = self.get_embeds(keyword)
+    def search_kg(self, agent_id: int, query_embeds: List[float], token_limit=100) -> List[Knowledge]:
         # URL to send the request to
         url = os.path.join(agentware.endpoint, "search_kg",
                            self._get_knowledge_graph_label(agent_id))
