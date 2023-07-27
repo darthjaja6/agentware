@@ -1,5 +1,6 @@
 from typing import Dict, List
 from pymilvus import Collection, DataType, FieldSchema, CollectionSchema
+from agentware import EMBEDDING_DIM
 from agentware.base import BaseMilvusStore, Command
 from agentware.utils.num_token_utils import get_num_tokens
 
@@ -27,7 +28,7 @@ class CommandsVectorStore(BaseMilvusStore):
         created_at_field = FieldSchema(
             name="created_at", dtype=DataType.INT64,  description="unix seconds, publish time")
         vector_field = FieldSchema(
-            name="vector", dtype=DataType.FLOAT_VECTOR, dim=self.DEFAULT_EMBED_DIM)
+            name="vector", dtype=DataType.FLOAT_VECTOR, dim=EMBEDDING_DIM)
 
         schema = CollectionSchema(fields=[id_field, name_field, description_field, endpoint_field, input_field, output_field, created_at_field, vector_field],
                                   auto_id=True,

@@ -3,6 +3,7 @@ from agentware.utils.json_validation.validate_json import validate_json
 from typing import List, Dict
 from agentware.utils.num_token_utils import count_message_tokens
 from agentware.core_engines import OpenAICoreEngine
+from agentware import KNOWLEDGE_BASE_IDENTIFIER_PREFIX
 from datetime import datetime
 from agentware.agent_logger import Logger
 from pymilvus import Milvus, connections, utility
@@ -82,24 +83,27 @@ class MemoryUnit:
 
 class Knowledge:
 
-    def __init__(self, created_at: int, content: str, embeds: List = [], id=""):
+    def __init__(self, created_at: int, content: str, embeds: List = [], id="", num_tokens: int = 0):
         self.created_at = int(created_at)
         self.content = content
         self.embeds = embeds
         self.id = id
-        self.num_tokens = count_message_tokens({
-            "content": content
-        })
+        if num_tokens <= 0:
+            self.num_tokens = count_message_tokens({
+                "content": content
+            })
+        else:
+            self.num_tokens = num_tokens
 
     @classmethod
     def from_json(cls, knowledge_json: Dict):
         embeds = []
-        id = ""
         if "embeds" in knowledge_json:
             embeds = knowledge_json["embeds"]
-        if 'id' in knowledge_json:
-            id = id
-        return cls(knowledge_json["created_at"], knowledge_json["content"], embeds, "")
+        id = ""
+        if "id" in knowledge_json:
+            id = knowledge_json["id"]
+        return cls(knowledge_json["created_at"], knowledge_json["content"], embeds, id)
 
     def to_json(self):
         return {
@@ -113,7 +117,7 @@ class Knowledge:
         return f"knowledge created at {datetime.fromtimestamp(created_at)}. content: {content}"
 
     def __repr__(self):
-        return f"knowledge({self.content}, created at {self.created_at})"
+        return f"knowledge({self.content}, created at {self.created_at}, id {self.id})"
 
     def update_embeds(self, embeds: List[float]) -> None:
         self.embeds = embeds
@@ -273,8 +277,6 @@ class OneshotAgent(BaseAgent):
 
 
 class BaseMilvusStore():
-    DEFAULT_EMBED_DIM = 1536  # openai embedding
-
     def _create_collection(self, collection_name: str) -> Collection:
         raise Exception("Not Implemented")
 
@@ -289,7 +291,6 @@ class BaseMilvusStore():
             self.nlist = int(cfg['nlist'])
         except ValueError as e:
             raise BaseException(f"Missing key in config caused error {e}")
-        self.client = Milvus(self.milvus_uri, self.port)
 
         self.connect = connections.connect(
             alias="default",
@@ -374,7 +375,7 @@ class Connector():
         return "command_collection"
 
     def _get_knowledge_base_id(self, agent_id: int):
-        return f"knowledge_{agent_id}"
+        return f"{KNOWLEDGE_BASE_IDENTIFIER_PREFIX}_{agent_id}"
 
     def _get_knowledge_graph_label(self, agent_id: int):
         return f"knowledge_graph_{agent_id}"
@@ -630,8 +631,8 @@ class Connector():
         if response.status_code == 200:
             logger.debug(f'Request to {url} was successful')
             data = json.loads(response.text)
-            logger.debug(f"knowledge data is", data)
-            return data
+            logger.debug(f"knowledge data is {data}")
+            return [Knowledge.from_json(knowledge_json) for knowledge_json in data]
         else:
             # Request failed
             logger.debug(

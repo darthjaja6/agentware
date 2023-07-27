@@ -1,6 +1,7 @@
 from agentware.utils.num_token_utils import get_num_tokens
 from typing import Dict, List
 from pymilvus import Collection, DataType, FieldSchema, CollectionSchema
+from agentware import EMBEDDING_DIM
 from agentware.base import BaseMilvusStore, Knowledge
 from agentware.agent_logger import Logger
 
@@ -22,7 +23,7 @@ class KnowledgeVectorStore(BaseMilvusStore):
         created_at_field = FieldSchema(
             name="created_at", dtype=DataType.INT64,  description="unix seconds, publish time")
         vector_field = FieldSchema(
-            name="vector", dtype=DataType.FLOAT_VECTOR, dim=self.DEFAULT_EMBED_DIM)
+            name="vector", dtype=DataType.FLOAT_VECTOR, dim=EMBEDDING_DIM)
 
         schema = CollectionSchema(fields=[id_field, content_field, created_at_field, vector_field],
                                   auto_id=True,
@@ -55,48 +56,59 @@ class KnowledgeVectorStore(BaseMilvusStore):
             print("get err {}".format(err))
             return err
 
-    def query_by_url(self, url: str, collection_name: str) -> bool:
-        self.check_and_maybe_create_collection(collection_name)
-        c = Collection(collection_name)
-        # query_embedding = None
-        # search_params = {“nprobe”: 16}
-        results = c.query(
-            expr='url == "{}"'.format(url),
-            output_fields=["id", "url", "content", "published_at", "vector"])
-        if results:
-            return results[0]
-        return None
-
     def search_knowledge(self,  collection_name: str, query_embeds: List[float], token_limit: int):
         self.check_and_maybe_create_collection(collection_name)
         results = self._similarity_query(
-            query_embeds, collection_name, ["content", "created_at"])
+            query_embeds, collection_name, ["id", "content", "created_at"])
         retrived_knowledges = []
         total_num_tokens = 0
         for result in results[0]:
-            content = result.entity.get('content')
-            created_at = result.entity.get('created_at')
+            content = result.entity.get("content")
+            created_at = result.entity.get("created_at")
+            id = result.entity.get("id")
             num_tokens = get_num_tokens(content)
             total_num_tokens += num_tokens
             if total_num_tokens > token_limit:
                 break
             retrived_knowledges.append(
-                {"created_at": created_at, "content": content})
+                {"created_at": created_at, "content": content, "id": id})
         return retrived_knowledges
 
-    def query_after_publish_time(self, since_time: int, collection_name: str) -> List[any]:
+    def query_after_create_time(self, since_time: int, collection_name: str) -> List[any]:
         self.check_and_maybe_create_collection(collection_name)
         c = Collection(collection_name)
         # query_embedding = None
         # search_params = {“nprobe”: 16}
         results = c.query(
-            expr='published_at > {}'.format(since_time),
-            output_fields=["id", "url", "content", "published_at"])
+            expr='created_at > {}'.format(since_time),
+            output_fields=["id", "content", "created_at"])
         if results:
             return results
         return []
 
-    def get_recent_knowledge(self, collection_name: str, token_limit) -> List[any]:
+    def get_recent_knowledge(self, collection_name: str, token_limit=100) -> List[any]:
         self.check_and_maybe_create_collection(collection_name)
-        # TODO: Implement
-        return []
+        c = Collection(collection_name)
+        # query_embedding = None
+        # search_params = {“nprobe”: 16}
+        query_params = {
+            'expr': "created_at > 0",
+            'output_fields': ["id", "content", "created_at"],
+            'sort_fields': ['-created_at'],
+            'limit': 10
+        }
+        results = c.query(**query_params)
+        print("results are", results)
+        retrived_knowledges = []
+        total_num_tokens = 0
+        for result in results:
+            content = result.get('content')
+            created_at = result.get('created_at')
+            id = result.get('id')
+            num_tokens = get_num_tokens(content)
+            total_num_tokens += num_tokens
+            if total_num_tokens > token_limit:
+                break
+            retrived_knowledges.append(
+                {"created_at": created_at, "content": content, "id": id})
+        return retrived_knowledges

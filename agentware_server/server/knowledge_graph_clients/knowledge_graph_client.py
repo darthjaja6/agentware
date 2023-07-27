@@ -10,8 +10,6 @@ logger = Logger()
 
 
 class KnowledgeGraphClient:
-    DEFAULT_EMBED_DIM = 1536
-
     def __init__(self, config: Dict):
         # Create vector db client
         vector_db_config = config['vector_db_config']

@@ -4,7 +4,7 @@ from agentware import hub
 from agentware.base import OneshotAgent, Connector
 from agentware.agent import Agent
 from agentware.agent_logger import Logger
-from utils import DbClient, EchoCoreEngine
+from utils import DbClient, FakeCoreEngine
 logger = Logger()
 
 TEST_CFG = {
@@ -19,7 +19,7 @@ class AgentTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.db_client = DbClient()
-        cls.echo_core_engine = EchoCoreEngine()
+        cls.fake_core_engine = FakeCoreEngine()
 
     def setUp(self):
         self.db_client.client.flushall()
@@ -61,7 +61,7 @@ class AgentTests(unittest.TestCase):
 
     def test_agent_reflection_run_in_update_mode(self):
         agent = Agent.init(TEST_CFG)
-        agent.set_core_engine(self.echo_core_engine)
+        agent.set_core_engine(self.fake_core_engine)
         assert agent._update_mode == False
         with agent.update():
             assert agent._update_mode == True

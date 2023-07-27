@@ -6,7 +6,7 @@ from agentware.base import OneshotAgent
 from agentware.agent_logger import Logger
 from agentware import HELPER_AGENT_CONFIGS_DIR_NAME
 from agentware.core_engines import CoreEngineBase
-from utils import DbClient, EchoCoreEngine
+from utils import DbClient, FakeCoreEngine
 logger = Logger()
 
 
@@ -23,7 +23,7 @@ class AgentTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.db_client = DbClient()
-        cls.echo_core_engine = EchoCoreEngine()
+        cls.fake_core_engine = FakeCoreEngine()
 
     def setUp(self):
         self.db_client.client.flushall()
