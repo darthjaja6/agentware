@@ -55,7 +55,7 @@ def create_memory(main_agent_config_path, connector):
     return memory
 
 
-def TestSaveLoadMemoryCheckpoint(memory, connector):
+def TestSaveLoadMemoryAgent(memory, connector):
     pass
 
 
@@ -67,9 +67,9 @@ if __name__ == "__main__":
     helper_agent_configs = {agent_name: agent.get_config()
                             for agent_name, agent in memory._helper_agents.items()}
     print("helpers are", helper_agent_configs)
-    connector.update_checkpoint(
-        memory.get_main_agent_config(), helper_agent_configs, memory._memory, memory._domain_knowledge, memory._context)
-    agent_config, helper_configs, memory_data, knowledge_data, context = connector.get_checkpoint(
+    connector.update_agent(1,
+                           memory.get_main_agent_config(), memory._memory)
+    agent_config, helper_configs, memory_data, knowledge_data, context = connector.get_agent(
         connector.get_agent_id())
     print("agent config", agent_config)
     print("helper agent configs", helper_configs)

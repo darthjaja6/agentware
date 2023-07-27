@@ -447,24 +447,22 @@ class Connector():
                 f'Request failed with status code: {response.status_code}')
             return None
 
-    def update_checkpoint(self, agent_id: int, agent_config: Dict[any, any], memory_units: List[MemoryUnit], knowledges: List[Knowledge], context: str):
+    def update_agent(self, agent_id: int, agent_config: Dict[any, any], memory_units: List[MemoryUnit]):
         if agent_id is None:
             agent_id = -1
         url = os.path.join(
-            agentware.endpoint, "update_checkpoint", str(agent_id))
+            agentware.endpoint, "update_agent", str(agent_id))
         headers = {
             'Authorization': f'Bearer {agentware.api_key}'
         }
-        ckpt_data = json.dumps({
+        agent_data = json.dumps({
             "agent_config": agent_config,
             "memory_data":  [m.to_json() for m in memory_units],
-            "knowledge": [k.to_json() for k in knowledges],
-            "context": context
         })
         logger.info(
-            f"Saving checkpoint {ckpt_data}")
+            f"Saving agent {agent_data}")
         # Send GET request
-        response = requests.put(url, headers=headers, data=ckpt_data)
+        response = requests.put(url, headers=headers, data=agent_data)
         # Check the response status code
         if response.status_code == 200:
 
@@ -477,9 +475,9 @@ class Connector():
                 f'Request failed with status code: {response.status_code}')
             return None
 
-    def get_checkpoint(self, agent_id: str) -> Tuple[Dict[any, any], Dict[str, Dict[any, any]], List[MemoryUnit], List[Knowledge], str]:
+    def get_agent(self, agent_id: str) -> Tuple[Dict[any, any], Dict[str, Dict[any, any]], List[MemoryUnit], List[Knowledge], str]:
         # URL to send the request to
-        url = os.path.join(agentware.endpoint, "get_checkpoint")
+        url = os.path.join(agentware.endpoint, "get_agent")
         # Send GET request
         headers = {
             'Authorization': f'Bearer {agentware.api_key}'
@@ -495,17 +493,16 @@ class Connector():
             print("data is", data)
             if not data["success"]:
                 raise ValueError(data["error_code"])
-            main_agent_config = data["main_agent_config"]
+            agent_config = data["agent_config"]
             memory_units = [MemoryUnit.from_json(
                 m) for m in data["memory_units"]]
-            context = data["context"]
-            return main_agent_config, memory_units, context
+            return agent_config, memory_units
         else:
             print("response is", response.text)
             # Request failed
             logger.debug(
                 f'Request failed with code: {response.status_code} error: {response.text}')
-            return None
+            return None, None
 
     def save_knowledge(self, agent_id: int, knowledges: List[Knowledge]):
         knowledge_base_identifier = self._get_knowledge_base_id(agent_id)

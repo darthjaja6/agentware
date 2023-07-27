@@ -1,7 +1,7 @@
 import unittest
 from pymilvus import utility
 import time
-from agentware.base import Connector, Knowledge, BaseMilvusStore
+from agentware.base import Connector, Knowledge, BaseMilvusStore, MemoryUnit
 from utils import DbClient, FakeCoreEngine
 
 VECTOR_DB_CFG = {
@@ -65,25 +65,37 @@ class ConnectorTests(unittest.TestCase):
         assert [k.content for k in recent_records] == ["The sun shines brightly today.",
                                                        "Google's search engine is powerful.", "Cats are adorable pets."]
 
-    # def test_search_existing_knowledge(self):
-    #     agent_id = 1
+    def test_agent_operations(self):
+        agent_id = 1
+        config = {
+            "name": "tool name",
+            "conversation_setup": "initial conversation setup",
+            "prompt_prefix": "Prompt for your"
+        }
+        memory = [
+            MemoryUnit("system", "memory 1"),
+            MemoryUnit("user", "memory 2"),
+            MemoryUnit("assistant", "memory 3"),
+        ]
+        self.connector.update_agent(
+            agent_id,
+            config,
+            memory)
+        fetched_config, fetched_memory = self.connector.get_agent(agent_id)
+        print(fetched_config)
+        print(fetched_memory)
+        assert fetched_config == config
+        assert [m.content for m in fetched_memory] == [
+            m.content for m in memory]
 
-        # def test_save_knowledge(self):
-        #     new_knowledges = self.connector.search_knowledge(
-        #         self.agent_id, self._agent.get_embeds(keyword), token_limit=self.MAX_NUM_TOKENS_KNOWLEDGE)
-        #     new_knowledges = self.connector.get_recent_knowledge(
-        #         self.agent_id)
-        #     self.connector.remove_knowledge(self.agent_id, ids_to_remove)
-        #     self.connector.save_knowledge(self.agent_id, reflections)
-        #     self.connector.update_longterm_memory(
-        #         self.agent_id, memory_to_compress)
-        #     self.connector.update_longterm_memory(
-        #         self.agent_id, memory_to_compress)
-        #     self.connector.update_checkpoint(
-        #         self.agent_id,
-        #         self._agent._config,
-        #         self._memory,
-        #         self._domain_knowledge,
-        #         self._context)
-        #     knowledge =
-        #     self.connector
+    def test_update_longterm_memory(self):
+        longterm_memory = [
+            MemoryUnit("system", "memory 1"),
+            MemoryUnit("user", "memory 2"),
+            MemoryUnit("assistant", "memory 3"),
+        ]
+        agent_id = 1
+        self.connector.update_longterm_memory(agent_id, longterm_memory)
+        fetched_memory = self.connector.get_longterm_memory(agent_id)
+        assert [m.content for m in fetched_memory] == [
+            m.content for m in longterm_memory]

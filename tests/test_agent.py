@@ -168,7 +168,7 @@ def RunDfsExecutor():
 def TestCreateAgent():
     connector = Connector(1)
     agent_id = 2
-    agent_config, memory_units, work_exp, context, session_data = connector.get_checkpoint(
+    agent_config, memory_units, work_exp, context, session_data = connector.get_agent(
         agent_id)
 
     memory = create_memory("./test_dataconfigsdocument_reader.json")

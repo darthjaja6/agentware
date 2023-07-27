@@ -4,7 +4,7 @@ from db_clients.memory_db_client import DbClient, LONG_MEMORY_KEY, AGENT_KEY, US
 from agentware.base import Knowledge, MemoryUnit, Command
 
 
-def TestMemoryCheckpointWriteRead(db_client: DbClient):
+def TestMemoryAgentWriteRead(db_client: DbClient):
     db_client.memory_client.delete(AGENT_KEY)
     memory_units1 = [
         MemoryUnit("user", "some content"),
@@ -24,11 +24,11 @@ def TestMemoryCheckpointWriteRead(db_client: DbClient):
         "name": "John"
     })
     agent_id = 0
-    db_client.update_checkpoint(
-        agent_config1, helper_agents_configs, memory_units1, knowledges1, context1, user_id, agent_id)
-    insertd_config, inserted_memory, inserted_knowledge, inserted_context = db_client.get_checkpoint(
+    db_client.update_agent(agent_id
+                           agent_config1, helper_agents_configs, memory_units1)
+    insertd_config, inserted_memory, inserted_knowledge, inserted_context = db_client.get_agent(
         agent_id)
-    print("Inserted memory checkpoint is")
+    print("Inserted memory agent is")
     print(insertd_config, inserted_memory,
           inserted_knowledge, inserted_context)
     agent_config2 = {"name": "some other config"}
@@ -45,11 +45,11 @@ def TestMemoryCheckpointWriteRead(db_client: DbClient):
         Knowledge(1234, "knowledge 2.1")
     ]
     context2 = "context2"
-    db_client.update_checkpoint(
-        agent_config2, helper_agents_configs2, memory_units2, knowledges2, context2, user_id, agent_id)
-    updated_config, updated_memory, updated_knowledge, updated_context = db_client.get_checkpoint(
+    db_client.update_agent(agent_id,
+                           agent_config2, memory_units2)
+    updated_config, updated_memory, updated_knowledge, updated_context = db_client.get_agent(
         agent_id)
-    print("Updated memory checkpoint is")
+    print("Updated memory agent is")
     print(updated_config, updated_memory, updated_knowledge, updated_context)
 
 
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     # TestSession(db_client)
     TestAgent(db_client)
     # TestUser(db_client)
-    # TestMemoryCheckpointWriteRead(db_client)
+    # TestMemoryAgentWriteRead(db_client)
 
     # print(db_client._read("knowledge"))
     # # Replace the existing key with a new list of dictionaries

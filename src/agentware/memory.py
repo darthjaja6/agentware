@@ -34,10 +34,10 @@ class Memory():
     def pull(cls, agent_id: int, agent):
         connector = Connector()
         try:
-            agent_config, memory_data, context = connector.get_checkpoint(
+            agent_config, memory_data = connector.get_agent(
                 agent_id)
 
-            memory = cls.init(agent_config, context, memory_data, agent)
+            memory = cls.init(agent_config, memory_data, agent)
         except Exception as e:
             raise e
         return memory
@@ -45,12 +45,11 @@ class Memory():
     @classmethod
     def init(cls,
              agent_config: Dict[any, any],
-             context: str,
              working_memory: List[MemoryUnit],
              agent: BaseAgent):
         logger.debug("initializing memory")
         memory = cls(agent)
-        memory._context = context
+        memory._context = agent_config["conversation_setup"]
         memory._memory = working_memory
         agent.set_config(agent_config)
         return memory
@@ -236,7 +235,7 @@ class Memory():
             self.connector.remove_knowledge(self.agent_id, ids_to_remove)
         except Exception as e:
             logger.warning(f"Failed to remove ids with error {e}")
-        # Save checkpoint and add to knowledge
+        # Save agent and add to knowledge
         if self.connector:
             for i, knowledge in enumerate(reflections):
                 if knowledge.embeds:
@@ -246,17 +245,15 @@ class Memory():
             self.connector.save_knowledge(self.agent_id, reflections)
             self.connector.update_longterm_memory(
                 self.agent_id, memory_to_compress)
-            # Update current checkpoint
-            self.update_check_point(self.agent_id)
+            # Update current agent
+            self.update_agent()
         return memory_to_compress
 
-    def update_check_point(self):
-        self.connector.update_checkpoint(
+    def update_agent(self):
+        self.connector.update_agent(
             self.agent_id,
             self._agent._config,
-            self._memory,
-            self._domain_knowledge,
-            self._context)
+            self._memory)
 
     def add_memory(self, memory: Dict[str, str]):
         new_memory = MemoryUnit(memory["role"], memory["content"])

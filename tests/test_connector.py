@@ -6,7 +6,7 @@ import time
 import json
 
 
-def TestConnectorUpdateCheckpoint(connector):
+def TestConnectorUpdateAgent(connector):
     connector = Connector(1)
     memory = create_memory(
         "./test_dataconfigsdocument_reader.json", connector)
@@ -15,9 +15,9 @@ def TestConnectorUpdateCheckpoint(connector):
                             for agent_name, agent in memory._helper_agents.items()}
     print("helpers are", helper_agent_configs)
     connector.create_agent()
-    connector.update_checkpoint(
-        memory.get_main_agent_config(), helper_agent_configs, memory._memory, memory._domain_knowledge, memory._context)
-    agent_config, helper_configs, memory_data, knowledge_data, context = connector.get_checkpoint(
+    connector.update_agent(
+        memory.get_main_agent_config(), helper_agent_configs, memory._memory)
+    agent_config, helper_configs, memory_data, knowledge_data, context = connector.get_agent(
         connector.get_agent_id())
     print("agent config", agent_config)
     print("helper agent configs", helper_configs)
@@ -35,8 +35,8 @@ def TestCreateAgentSuccess(connector: Connector):
     print("create agent id is", connector.create_agent())
 
 
-def TestGetCheckpointSuccess(connector: Connector):
-    print("Checkpoint data is", connector.get_checkpoint(3))
+def TestGetAgentSuccess(connector: Connector):
+    print("Agent data is", connector.get_agent(3))
 
 
 def TestListAgentsSuccess(connector: Connector):
@@ -56,7 +56,7 @@ def TestUpdateLongtermMemorySuccess(connector: Connector):
           connector.update_longterm_memory(3, memory_units))
 
 
-def TestUpdateCheckpointSuccess(connector: Connector):
+def TestUpdateAgentSuccess(connector: Connector):
     data = {
         "agent_config": {"name": "xx", "conversation_setup": "ppppp"},
         "helper_agent_configs": [{"name": "summarizer"}],
@@ -67,10 +67,8 @@ def TestUpdateCheckpointSuccess(connector: Connector):
     agent_config = data["agent_config"]
     helper_agent_configs = data["helper_agent_configs"]
     memory_data = data["memory_data"]
-    knowledge = data["knowledge"]
-    context = data["context"]
-    print("update checkpoint result is", connector.update_checkpoint(
-        agent_config, helper_agent_configs, memory_data, knowledge, context, 3))
+    print("update agent result is", connector.update_agent(
+        agent_config, helper_agent_configs, memory_data))
 
 
 def TestSaveKnowledgeSuccess(connector: Connector):
@@ -105,8 +103,8 @@ if __name__ == "__main__":
     TestListAgentsSuccess(connector)
     TestUpdateLongtermMemorySuccess(connector)
     TestGetLongtermMemorySuccess(connector)
-    TestUpdateCheckpointSuccess(connector)
-    TestGetCheckpointSuccess(connector)
+    TestUpdateAgentSuccess(connector)
+    TestGetAgentSuccess(connector)
     TestSaveKnowledgeSuccess(connector)
     TestSearchKnowledge(connector)
     # connector._db_client.agent_client.delete(AGENT_KEY)

@@ -36,32 +36,30 @@ def ping(request, **kwargs):
 
 @csrf_exempt
 @require_http_methods("GET")
-def get_checkpoint(request, **kwargs):
+def get_agent(request, **kwargs):
     try:
         agent_id = request.GET.get('agent_id')
         if not agent_id:
             return JsonResponse({
                 "success": False,
                 "error_code": error_codes.INVALID_AGENT_ID})
-        main_agent_config, memory_units, context = db_client.get_checkpoint(
+        agent_config, memory_units = db_client.get_agent(
             agent_id)
-        if not main_agent_config:
+        if not agent_config:
             return JsonResponse({
                 "success": False,
                 "error_code":  error_codes.AGENT_NOT_FOUND.code}, safe=False)
         result = {
             "success": True,
-            "main_agent_config": dict(),
+            "agent_config": dict(),
             "memory_units": [],
-            "context": ""
         }
-        if main_agent_config:
-            result["main_agent_config"] = main_agent_config
+        if agent_config:
+            result["agent_config"] = agent_config
         if memory_units:
             result["memory_units"] = memory_units
         return JsonResponse(result, safe=False)
     except Exception as e:
-        print("there is an exeption", e)
         return HttpResponseBadRequest(str(e))
 
 
@@ -98,14 +96,13 @@ def update_longterm_memory(request, agent_id: int, **kwargs):
 
 @csrf_exempt
 @require_http_methods("PUT")
-def update_checkpoint(request, agent_id: str, **kwargs):
+def update_agent(request, agent_id: str, **kwargs):
     try:
         data = json.loads(request.body)
         agent_config = data['agent_config']
         memory_data = data["memory_data"]
-        context = data['context']
-        db_client.update_checkpoint(agent_id,
-                                    agent_config, memory_data, context)
+        db_client.update_agent(agent_id,
+                               agent_config, memory_data)
         return JsonResponse({'status': 'success'})
     except Exception as e:
         return HttpResponseBadRequest(str(e))

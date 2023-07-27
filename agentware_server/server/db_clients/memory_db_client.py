@@ -65,18 +65,17 @@ class DbClient:
     def all_agents(self):
         return self.client.keys()
 
-    def get_checkpoint(self, agent_id: int) -> Tuple[Dict[any, any], Dict[str, any], List[Dict], List[Dict], str]:
-        memory_checkpoint_json = self.client.get(agent_id)
-        if not memory_checkpoint_json:
+    def get_agent(self, agent_id: int) -> Tuple[Dict[any, any], Dict[str, any], List[Dict], List[Dict], str]:
+        memory_agent_json = self.client.get(agent_id)
+        if not memory_agent_json:
             return None, None, None
-        memory_checkpoint = json.loads(memory_checkpoint_json)
-        return memory_checkpoint["agent_config"], memory_checkpoint["memory"], memory_checkpoint["context"]
+        memory_agent = json.loads(memory_agent_json)
+        return memory_agent["agent_config"], memory_agent["memory"]
 
-    def update_checkpoint(self, agent_id: str, agent_config: Dict[any, any], memory_units: List[Dict], context: str):
+    def update_agent(self, agent_id: str, agent_config: Dict[any, any], memory_units: List[Dict]):
         # Working memory is completely replaced
         working_memory = {
             "agent_config": agent_config,
-            "context": context,
             "memory": memory_units
         }
         serialized_working_memory = json.dumps(working_memory)
