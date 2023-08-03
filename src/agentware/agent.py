@@ -1,17 +1,12 @@
 from agentware.agent_logger import Logger
 from agentware.memory import Memory
 from agentware.base import BaseAgent
-from agentware.hub import register_agent
-import yaml
+from agentware.hub import register_agent, remove_agent, agent_exists
 import openai
-import re
 import json
-import os
-import datetime
 import copy
 
 import traceback
-from typing import List, Any, Dict
 import agentware
 
 
@@ -58,6 +53,7 @@ class Agent(BaseAgent):
             return self.obj
 
         def __exit__(self, exc_type, exc_val, exc_tb):
+            # update knowledge
             self.obj._update_mode = False
 
     def run(self, prompt):
@@ -118,14 +114,25 @@ class Agent(BaseAgent):
                 break
             num_retries += 1
 
-    def register(self, agent_id: str):
+    def exists(self):
+        if not self.id:
+            return False
+        return agent_exists(self.id)
+
+    def remove(self):
+        assert self.id
+        remove_agent(self.id)
+
+    def register(self, agent_id: str = ""):
+        if not agent_id:
+            agent_id = self.id
         assert agent_id
         register_agent(agent_id)
-        self.agent_id = agent_id
+        self.id = agent_id
         self._memory.agent_id = agent_id
 
     def push(self):
         # Check agent id valid
-        assert self.agent_id
-        logger.debug(f"Pushing agent with name {self.agent_id}")
-        self._memory.update_check_point()
+        assert self.id
+        logger.debug(f"Pushing agent with name {self.id}")
+        self._memory.update_agent()

@@ -18,7 +18,7 @@ def get_config(config_fname):
     return config
 
 
-class AgentTests(unittest.TestCase):
+class HelperAgentTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):

@@ -42,8 +42,8 @@ def create_memory(main_agent_config_path, connector):
     main_agent_config = None
     with open(main_agent_config_path, "r") as f:
         main_agent_config = json.loads(f.read())
-
-    context = main_agent_config["conversation_setup"]
+    if "conversation_setup" in main_agent_config:
+        context = main_agent_config["conversation_setup"]
     domain_knowledge = [
         Knowledge(f"{int(time.time())}",
                   "Commonly used tools are Google, Python"),

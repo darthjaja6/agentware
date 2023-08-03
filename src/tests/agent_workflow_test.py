@@ -4,7 +4,7 @@ from agentware import hub
 from agentware.base import OneshotAgent, Connector
 from agentware.agent import Agent
 from agentware.agent_logger import Logger
-from utils import DbClient, FakeCoreEngine
+from utils import DbClient, FakeCoreEngine, SummarizerCoreEngine, FactCoreEngine
 logger = Logger()
 
 TEST_CFG = {
@@ -14,12 +14,14 @@ TEST_CFG = {
 }
 
 
-class AgentTests(unittest.TestCase):
+class AgentWorkflowTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
         cls.db_client = DbClient()
-        cls.fake_core_engine = FakeCoreEngine()
+        cls.main_core_engine = FakeCoreEngine("software " * 200)
+        cls.summarizer_core_engine = FakeCoreEngine(
+            "{\"summary\": \"this is a summary\"}")
 
     def setUp(self):
         self.db_client.client.flushall()
@@ -54,14 +56,28 @@ class AgentTests(unittest.TestCase):
         updated_agent = Agent.pull(agent_id)
         assert updated_agent.get_config() == TEST_CFG
 
+    def test_agent_exist_remove(self):
+        agent_id = "some_agent_name"
+        assert not hub.agent_exists(agent_id)
+        agent = Agent()
+        agent.register(agent_id)
+        assert agent.exists()
+        # 还需要删除milvus
+        agent.remove()
+        assert not agent.exists()
+
     def test_memory_compression(self):
         agent = Agent.init(TEST_CFG)
+        agent.set_core_engine(self.main_core_engine)
+        agent._memory._helper_agents["summarizer"].set_core_engine(
+            SummarizerCoreEngine())
+        agent._memory._helper_agents["fact"].set_core_engine(
+            FactCoreEngine())
         for i in range(10):
             agent.run("What is your name?")
 
     def test_agent_reflection_run_in_update_mode(self):
         agent = Agent.init(TEST_CFG)
-        agent.set_core_engine(self.fake_core_engine)
         assert agent._update_mode == False
         with agent.update():
             assert agent._update_mode == True

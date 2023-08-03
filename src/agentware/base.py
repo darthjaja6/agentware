@@ -22,6 +22,45 @@ from pymilvus import Collection, DataType, FieldSchema, CollectionSchema
 logger = Logger()
 
 
+class AgentConfig:
+    def __init__(self, config: Dict[str, any]):
+        assert "name" in config
+        self.name = config['name']
+        assert "conversation_setup" in config
+        assert "prompt_prefix" in config
+        if "output_format" in config:
+            assert "instruction" in config
+
+        # "name": "tool_query",
+        # "conversation_setup": "You will be given a json file that has two keys 'observations' and 'facts', each containing a list. The 'observations' field is a list of new observations, while the 'facts' field contains the facts before the observations, each with and id. Your job is to help find out which of the facts are no longer true, give the ids of the them, and the updated facts that are true given the observations",
+        # "prompt_prefix": "List the ids of the facts if they are wrong given the observations:",
+        # "output_format": {
+        #     "instruction": "Your output MUST be a json that has a field named \"wrong_facts\".",
+        #     "examples": [
+        #         {
+        #             "condition": "",
+        #             "output": "{\"wrong_facts\": [{\"id\": <int id of the wrong fact, must be in accordance with the facts in question>, <another id>, ...]}"
+        #         }
+        #     ],
+        #     "output_schema":
+        #     {
+        #         "$schema": "http://json-schema.org/draft-07/schema#",
+        #         "type": "object",
+        #         "properties": {
+        #             "wrong_facts": {
+        #                 "type": "array",
+        #                 "items": {
+        #                     "type": "integer"
+        #                 }
+        #             }
+        #         },
+        #         "required": ["wrong_facts"],
+        #         "additionalProperties": false
+        #     },
+        #     "termination_observation": "wrong_facts"
+        # }
+
+
 class Node:
     def __init__(self, node_name: str, embedding: List[float] = []):
         self.name = node_name
@@ -151,6 +190,7 @@ class BaseAgent:
         return agent
 
     def set_core_engine(self, core_engine):
+        logger.debug(f"Setting core engine to {core_engine}")
         self._core_engine = core_engine
 
     def get_embeds(self, text: str) -> List[float]:
@@ -197,6 +237,7 @@ class BaseAgent:
     def _run(self, messages: List[Dict[str, str]]) -> str:
         logger.debug(
             f"Sending raw messages: {self._messages_to_str(messages)}")
+        print("core engine is", self._core_engine)
         self._core_engine.run(messages)
         raw_output = self._core_engine.run(messages)
         # completion = openai.ChatCompletion.create(
@@ -358,13 +399,59 @@ class Connector():
         data = json.dumps({
             "agent_id": agent_id
         })
-        # Send GET request
+
         response = requests.put(url, headers=headers, data=data)
         # Check the response status code
         if response.status_code == 200:
             logger.debug(f'Request to {url} was successful')
             data = json.loads(response.text)
             return data["exists"]
+        else:
+            # Request failed
+            logger.debug(
+                f'Request failed with status code: {response.status_code}')
+            return None
+
+    def remove_agent(self, agent_id: str):
+        # URL to send the request tor
+        url = os.path.join(agentware.endpoint, "remove_agent")
+        headers = {
+            'Authorization': f'Bearer {agentware.api_key}'
+        }
+        data = json.dumps({
+            "agent_id": agent_id
+        })
+        response = requests.put(url, headers=headers, data=data)
+        # Check the response status code
+        if response.status_code == 200:
+            logger.debug(f'Request to {url} was successful')
+            data = json.loads(response.text)
+            if data["success"]:
+                return {"success": True}
+            else:
+                return {"success": False, "fail_reason": data["fail_reason"]}
+        else:
+            # Request failed
+            logger.debug(
+                f'Request failed with status code: {response.status_code}')
+            return None
+
+    def agent_exists(self, agent_id: str):
+        url = os.path.join(
+            agentware.endpoint, "agent_exists", str(agent_id))
+        headers = {
+            'Authorization': f'Bearer {agentware.api_key}'
+        }
+
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            logger.debug(f'Request to {url} was successful')
+            data = json.loads(response.text)
+            logger.debug(f"agent exists {data}")
+            if data["exists"]:
+                return True
+            else:
+                return False
         else:
             # Request failed
             logger.debug(
@@ -386,7 +473,7 @@ class Connector():
         headers = {
             'Authorization': f'Bearer {agentware.api_key}'
         }
-        # Send GET request
+
         response = requests.get(url, headers=headers)
         # Check the response status code
         if response.status_code == 200:
@@ -409,7 +496,7 @@ class Connector():
             'page_number': page_number,
             'page_size': page_size
         }
-        # Send GET request
+
         response = requests.get(url, headers=headers, params=params)
         # Check the response status code
         if response.status_code == 200:
@@ -433,7 +520,7 @@ class Connector():
         memory_data = json.dumps({
             "memory_data": [m.to_json() for m in memory_units]
         })
-        # Send GET request
+
         response = requests.put(url, headers=headers, data=memory_data)
         # Check the response status code
         if response.status_code == 200:
@@ -461,7 +548,7 @@ class Connector():
         })
         logger.info(
             f"Saving agent {agent_data}")
-        # Send GET request
+
         response = requests.put(url, headers=headers, data=agent_data)
         # Check the response status code
         if response.status_code == 200:
@@ -478,7 +565,7 @@ class Connector():
     def get_agent(self, agent_id: str) -> Tuple[Dict[any, any], Dict[str, Dict[any, any]], List[MemoryUnit], List[Knowledge], str]:
         # URL to send the request to
         url = os.path.join(agentware.endpoint, "get_agent")
-        # Send GET request
+
         headers = {
             'Authorization': f'Bearer {agentware.api_key}'
         }
@@ -511,7 +598,7 @@ class Connector():
         # URL to send the request to
         url = os.path.join(agentware.endpoint, "save_knowledge",
                            knowledge_base_identifier)
-        # Send GET request
+
         headers = {
             'Authorization': f'Bearer {agentware.api_key}'
         }
@@ -535,7 +622,7 @@ class Connector():
         # URL to send the request to
         url = os.path.join(agentware.endpoint, "search_commands",
                            self._get_command_hub_id())
-        # Send GET request
+
         headers = {
             'Authorization': f'Bearer {agentware.api_key}'
         }
@@ -561,7 +648,7 @@ class Connector():
         # URL to send the request to
         url = os.path.join(agentware.endpoint, "search_knowledge",
                            self._get_knowledge_base_id(agent_id))
-        # Send GET request
+
         headers = {
             'Authorization': f'Bearer {agentware.api_key}'
         }
@@ -587,7 +674,7 @@ class Connector():
         knowledge_base_identifier = self._get_knowledge_base_id(agent_id)
         # URL to send the request to
         url = os.path.join(agentware.endpoint, "remove_knowledge")
-        # Send GET request
+
         headers = {
             'Authorization': f'Bearer {agentware.api_key}'
         }
@@ -616,7 +703,7 @@ class Connector():
     def get_recent_knowledge(self, agent_id: int, token_limit=100) -> List[Knowledge]:
         url = os.path.join(agentware.endpoint, "get_recent_knowledge",
                            self._get_knowledge_base_id(agent_id))
-        # Send GET request
+
         headers = {
             'Authorization': f'Bearer {agentware.api_key}'
         }
@@ -641,7 +728,7 @@ class Connector():
         # URL to send the request to
         url = os.path.join(agentware.endpoint, "search_kg",
                            self._get_knowledge_graph_label(agent_id))
-        # Send GET request
+
         headers = {
             'Authorization': f'Bearer {agentware.api_key}'
         }

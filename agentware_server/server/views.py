@@ -9,8 +9,8 @@ import json
 
 from agentware.base import Knowledge
 from agentware import error_codes
-from server.vector_db_clients.command_vector_db import CommandsVectorStore
 from server.vector_db_clients.knowledge_vector_db import KnowledgeVectorStore
+from server.vector_db_clients.command_vector_db import CommandsVectorStore
 from server.knowledge_graph_clients.knowledge_graph_client import KnowledgeGraphClient, Node
 from server.db_clients.memory_db_client import DbClient
 
@@ -204,6 +204,42 @@ def register_agent(request, **kwargs):
     except Exception as e:
         print(e)
         return HttpResponseBadRequest(str(e))
+
+
+@csrf_exempt
+@require_http_methods("GET")
+def agent_exists(request, agent_id: int, **kwargs):
+    try:
+        if not agent_id:
+            raise BaseException(f"Invalid agent id {agent_id}")
+        return JsonResponse({
+            "exists": db_client.agent_exists(agent_id)
+        }, safe=False)
+    except Exception as e:
+        print(e)
+        return HttpResponseBadRequest(str(e))
+
+
+@csrf_exempt
+@require_http_methods("PUT")
+def remove_agent(request, **kwargs):
+    try:
+        data = json.loads(request.body)
+        agent_id = data['agent_id']
+        if not agent_id:
+            raise ValueError(f"agent id empty")
+        if not agent_id:
+            raise ValueError(f"agent id empty")
+        db_client.remove_agent(agent_id)
+        return JsonResponse({
+            "success": True
+        }, safe=False)
+    except Exception as e:
+        print(e)
+        return JsonResponse({
+            "success": False,
+            "fail_reason": str(e)
+        })
 
 
 @csrf_exempt

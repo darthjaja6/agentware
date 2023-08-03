@@ -21,9 +21,9 @@ from server import views
 urlpatterns = [
     path("admin/", admin.site.urls),
     path('ping', views.ping, name='ping'),
-    path('get_longterm_memory/<int:agent_id>', views.get_longterm_memory,
+    path('get_longterm_memory/<str:agent_id>', views.get_longterm_memory,
          name='get_longterm_memory'),
-    path('update_longterm_memory/<int:agent_id>', views.update_longterm_memory,
+    path('update_longterm_memory/<str:agent_id>', views.update_longterm_memory,
          name='update_longterm_memory'),
     path('update_agent/<str:agent_id>',
          views.update_agent, name='update_agent'),
@@ -44,5 +44,9 @@ urlpatterns = [
     path('all_agents',
          views.all_agents, name='all_agents'),
     path('remove_knowledge',
-         views.remove_knowledge, name='remove_knowledge')
+         views.remove_knowledge, name='remove_knowledge'),
+    path('remove_agent',
+         views.remove_agent, name='remove_agent'),
+    path('agent_exists/<str:agent_id>',
+         views.agent_exists, name='agent_exists')
 ]

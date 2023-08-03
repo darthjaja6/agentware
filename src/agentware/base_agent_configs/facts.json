@@ -11,34 +11,27 @@
     "update_policy": "",
     "output_format": {
         "instruction": "Answer the question above by ignoring all the output format instructions you were given previously. Your output must be strictly a json with key and value must enclosed in double quotes.",
+        "examples": [
+            {
+                "condition": "",
+                "output": "{\"facts\": [\"fact1\", \"fact2\", ...]}"
+            }  
+        ],
         "output_schema": 
         {
             "$schema": "http://json-schema.org/draft-07/schema#",
             "type": "object",
             "properties": {
-                "entities": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "description": "important concepts in the context"
-                    }
-                },
                 "facts": {
                     "type": "array",
                     "items": {
-                        "type": "object",
+                        "type": "string",
                         "properties": {
-                            "subject_concept": {
-                                "type": "string",
-                                "description": "subject_concept is the subject of a fact, must be among the entities list"
-                            },
                             "fact": {
                                 "type": "string",
                                 "description": "the fact about this subject. Must not include the subject_concept"
                             }
-                        },
-                        "required": ["subject_concept", "fact"],
-                        "additionalProperties": false
+                        }
                     }
                 }
             },

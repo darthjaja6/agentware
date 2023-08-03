@@ -62,13 +62,23 @@ class DbClient:
         self.client.set(agent_id, "")
         return False
 
+    def agent_exists(self, agent_id: str):
+        return self.client.exists(agent_id)
+
+    def remove_agent(self, agent_id: str):
+        agent_exists = self.client.exists(agent_id)
+        if not agent_exists:
+            logger.debug(f"Agent {agent_id} does not exist")
+        else:
+            self.client.delete(agent_id)
+
     def all_agents(self):
         return self.client.keys()
 
     def get_agent(self, agent_id: int) -> Tuple[Dict[any, any], Dict[str, any], List[Dict], List[Dict], str]:
         memory_agent_json = self.client.get(agent_id)
         if not memory_agent_json:
-            return None, None, None
+            return None, None
         memory_agent = json.loads(memory_agent_json)
         return memory_agent["agent_config"], memory_agent["memory"]
 

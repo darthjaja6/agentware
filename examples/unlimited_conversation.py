@@ -1,17 +1,12 @@
-# Agentware
-
-agentware is an AI agent library. The agent learns knowledge from context on the fly when doing jobs and then apply it to later tasks.
-
-## Examples
-
-```
 from agentware.agent import Agent
 
 cfg = {
-    "name": "Nancy",
+    "name": "Alice",
     "description": "You are a personal assistant aimed at helping humans manage daily errands"
 }
 agent = Agent.init(cfg)
+if agent.exists():
+    agent.remove()
 agent.register()
 with agent.update():
     print("AI response:", agent.run("Hi, I'm Joe"))
@@ -26,11 +21,3 @@ with agent.update():
 
 agent = Agent.pull(cfg["name"])
 print("AI response:", agent.run("Where's the fish?"))
-```
-
-## Release notes
-
-1. Aug 3, 2023
-
-- Unlimited conversation based on memory compression and
--

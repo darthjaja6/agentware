@@ -5,7 +5,7 @@ from agentware.base import Connector, Knowledge, BaseMilvusStore, MemoryUnit
 from utils import DbClient, FakeCoreEngine
 
 VECTOR_DB_CFG = {
-    "uri": "130.211.121.33",
+    "uri": "localhost",
     "port": "19530",
     "user": "admin",
     "secure": "True",

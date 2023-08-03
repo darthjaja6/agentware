@@ -27,7 +27,6 @@ class Memory():
         self._num_tokens_context = 0
         self._num_tokens_domain_knowledge = 0
         self._agent = agent
-        self.agent_id = None
         self.connector = Connector()
 
     @classmethod
@@ -36,7 +35,6 @@ class Memory():
         try:
             agent_config, memory_data = connector.get_agent(
                 agent_id)
-
             memory = cls.init(agent_config, memory_data, agent)
         except Exception as e:
             raise e
@@ -49,7 +47,8 @@ class Memory():
              agent: BaseAgent):
         logger.debug("initializing memory")
         memory = cls(agent)
-        memory._context = agent_config["conversation_setup"]
+        if "conversation_setup" in agent_config:
+            memory._context = agent_config["conversation_setup"]
         memory._memory = working_memory
         agent.set_config(agent_config)
         return memory
@@ -144,7 +143,7 @@ class Memory():
     def get_query_term(self, seed) -> str:
         """ Extract search keywords from the query sentence.
         """
-        return self._helper_agents["tool_query"].run(seed)
+        return seed
 
     def update_context(self, prompt_prefix: str, prompt: str):
         logger.info(
@@ -155,13 +154,13 @@ class Memory():
         new_knowledges = []
         if keyword:
             new_knowledges = self.connector.search_knowledge(
-                self.agent_id, self._agent.get_embeds(keyword), token_limit=self.MAX_NUM_TOKENS_KNOWLEDGE)
+                self._agent.id, self._agent.get_embeds(keyword), token_limit=self.MAX_NUM_TOKENS_KNOWLEDGE)
             logger.debug(f"Updated new knowledge to {new_knowledges}")
         else:
             logger.debug(
                 "Keyword is empty, fetching most recent knowledge instead")
             new_knowledges = self.connector.get_recent_knowledge(
-                self.agent_id)
+                self._agent.id)
         self.update_knowledge(new_knowledges)
         # query for commands
         # self._commands = self.connector.search_commands(self._agent.get_embeds(keyword))
@@ -175,18 +174,18 @@ class Memory():
         # Step1: Extract facts.
         facts = self._helper_agents["fact"].run(
             f"```{memory_text}```, extract all facts and insights concisely from the text above and make sure each fact has clear meaning if viewed independently. Each fact should not exceed 10 tokens.")
-        facts = [f["subject_concept"] + " " + f["fact"] for f in facts]
-        logger.debug(facts)
+        logger.debug(f"facts are {facts}")
         new_knowledges = [Knowledge(int(time.time()), fact) for fact in facts]
         # Get keywords from memory text
         keyword = self.get_query_term(memory_text)
         relevant_knowledges = self.connector.search_knowledge(
-            self.agent_id, self._agent.get_embeds(keyword), token_limit=self.MAX_NUM_TOKENS_KNOWLEDGE)
+            self._agent.id, self._agent.get_embeds(keyword), token_limit=self.MAX_NUM_TOKENS_KNOWLEDGE)
         # Compare the facts in memory with the relevant knowledge, mark the ones that need to be updated
         knowledge_ids_to_remove = []
+        logger.debug()
         observations_old_facts = {
             "observations": facts,
-            "facts": relevant_knowledges
+            "facts": [k.to_json() for k in relevant_knowledges]
         }
         knowledge_ids_to_remove = self._helper_agents["conflict_resolver"].run(
             json.dumps(observations_old_facts))
@@ -208,10 +207,10 @@ class Memory():
         for i, m in enumerate(self._memory):
             print("m is", m)
             current_num_tokens += m.num_tokens
-            if current_num_tokens > self.num_tokens_memory/2:
+            if current_num_tokens > self._num_tokens_memory/2:
                 compress_until_index = i
                 break
-        num_tokens_not_compressed = self.num_tokens_memory - current_num_tokens
+        num_tokens_not_compressed = self._num_tokens_memory - current_num_tokens
         print(
             f"From {len(self._memory)} memory units, compressing from 0 to {compress_until_index}")
         memory_to_compress = self._memory[:(compress_until_index+1)]
@@ -225,14 +224,14 @@ class Memory():
             "user",  f"A summary of our past conversation: {compressed_memory_content}")
         self._memory = [compressed_memory] + \
             self._memory[compress_until_index:]
-        self.num_tokens_memory = num_tokens_not_compressed + compressed_memory.num_tokens
+        self._num_tokens_memory = num_tokens_not_compressed + compressed_memory.num_tokens
         logger.info("memory after compressing is")
         logger.info(self.__str__())
         reflections, ids_to_remove = self.reflect(memory_text)
         # Remove knowledges
         logger.debug(f"Removing ids {ids_to_remove} from knowledge base")
         try:
-            self.connector.remove_knowledge(self.agent_id, ids_to_remove)
+            self.connector.remove_knowledge(self._agent.id, ids_to_remove)
         except Exception as e:
             logger.warning(f"Failed to remove ids with error {e}")
         # Save agent and add to knowledge
@@ -242,16 +241,16 @@ class Memory():
                     continue
                 embeds = self._agent.get_embeds(knowledge.content)
                 reflections[i].update_embeds(embeds)
-            self.connector.save_knowledge(self.agent_id, reflections)
+            self.connector.save_knowledge(self._agent.id, reflections)
             self.connector.update_longterm_memory(
-                self.agent_id, memory_to_compress)
+                self._agent.id, memory_to_compress)
             # Update current agent
             self.update_agent()
         return memory_to_compress
 
     def update_agent(self):
         self.connector.update_agent(
-            self.agent_id,
+            self._agent.id,
             self._agent._config,
             self._memory)
 
@@ -327,7 +326,7 @@ class Memory():
         return self.__str__()
 
     def __deepcopy__(self, memodict={}):
-        cpyobj = type(self).init(self._agent._config, self._context,
+        cpyobj = type(self).init(self._agent._config,
                                  self._memory, self._agent)  # shallow copy of whole object
         cpyobj._domain_knowledge = copy.deepcopy(
             self._domain_knowledge, memodict)
