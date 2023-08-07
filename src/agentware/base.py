@@ -14,6 +14,7 @@ import requests
 import openai
 import agentware
 import copy
+import pystache
 
 from typing import List, Dict, Tuple
 from pymilvus import Collection, DataType, FieldSchema, CollectionSchema
@@ -171,10 +172,9 @@ class BaseAgent:
     MODEL_NAME = "gpt-3.5-turbo-16k-0613"
     MAX_NUM_RETRIES = 3
 
-    def __init__(self):
-        self._config = None
-        self._output_schema = ""
-        self._prompt_template = ""
+    def __init__(self, name, prompt_processor=None):
+        self._name = name
+        self._prompt_processor = prompt_processor
         self._core_engine = OpenAICoreEngine()
 
     @classmethod
@@ -194,33 +194,37 @@ class BaseAgent:
     def get_embeds(self, text: str) -> List[float]:
         return self._core_engine.get_embeds(text)
 
-    def set_config(self, cfg: Dict[str, any]):
-        assert "name" in cfg
-        self.id = cfg["name"]
-        self._config = cfg
-        # output format
-        if "output_format" in cfg:
-            self._format_instruction = ""
-            if "instruction" in cfg["output_format"]:
-                self._format_instruction = cfg["output_format"]["instruction"]
-            self._output_schema = ""
-            if "output_schema" in cfg["output_format"]:
-                self._output_schema = cfg["output_format"]["output_schema"]
-            if "examples" in cfg["output_format"]:
-                self._format_examples = ""
-                for example in cfg["output_format"]["examples"]:
-                    example_output = example["output"]
-                    if example["condition"]:
-                        condition = example["condition"]
-                        self._format_examples += f"In the case of {condition}, output in the form of {example_output}"
-                    else:
-                        self._format_examples += f"Output in the form of {example_output}"
-                        # Empty condition means one output format for all cases
-                        break
-            self._format_instruction += self._format_examples
-            self._termination_observation = ""
-            if "termination_observation" in cfg["output_format"]:
-                self._termination_observation = cfg["output_format"]["termination_observation"]
+    # def set_config(self, cfg: Dict[str, any]):
+    #     assert "name" in cfg
+    #     assert "conversation_setup" in cfg
+    #     assert "prompt_processor" in cfg
+    #     self._config = cfg
+    #     self.id = cfg["name"]
+    #     self._prompt_processor = PromptProcessor(cfg["prompt_processor"])
+
+        # # output format
+        # if "output_format" in cfg:
+        #     self._format_instruction = ""
+        #     if "instruction" in cfg["output_format"]:
+        #         self._format_instruction = cfg["output_format"]["instruction"]
+        #     self._output_schema = ""
+        #     if "output_schema" in cfg["output_format"]:
+        #         self._output_schema = cfg["output_format"]["output_schema"]
+        #     if "examples" in cfg["output_format"]:
+        #         self._format_examples = ""
+        #         for example in cfg["output_format"]["examples"]:
+        #             example_output = example["output"]
+        #             if example["condition"]:
+        #                 condition = example["condition"]
+        #                 self._format_examples += f"In the case of {condition}, output in the form of {example_output}"
+        #             else:
+        #                 self._format_examples += f"Output in the form of {example_output}"
+        #                 # Empty condition means one output format for all cases
+        #                 break
+        #     self._format_instruction += self._format_examples
+        #     self._termination_observation = ""
+        #     if "termination_observation" in cfg["output_format"]:
+        #         self._termination_observation = cfg["output_format"]["termination_observation"]
         if "prompt_prefix" in cfg:
             self.prompt_prefix = cfg["prompt_prefix"]
 
@@ -246,14 +250,6 @@ class BaseAgent:
         logger.debug(f"Raw output: {raw_output}")
         return raw_output
 
-    def parse_output(self, llm_output):
-        logger.debug(f'parsing {llm_output}')
-        parsed_output = fix_and_parse_json(llm_output)
-        logger.debug(f"parse success, output is {parsed_output}")
-        logger.debug(f"validating with schema {self._output_schema}")
-        validated_output = validate_json(parsed_output, self._output_schema)
-        return validated_output
-
     def run(self, prompt: str):
         raise Exception("Not Implemented")
 
@@ -262,36 +258,29 @@ class BaseAgent:
 
 
 class OneshotAgent(BaseAgent):
-    def __init__(self, cfg):
-        super().__init__()
-        self.set_config(cfg)
+    def __init__(self, prompt_processor=None):
+        super().__init__("", prompt_processor)
 
-    def run(self, prompt) -> str:
+    def run(self, **kwargs) -> str:
         num_retries = 0
         raw_output = ""
-        logger.debug(f"format instruction is {self._format_instruction}")
         messages = [{
             "role": "system",
-            "content": self._config["conversation_setup"]
+            "content": self._prompt_processor.get_conversation_setup()
         }] + [{
             "role": "user",
-            "content": f"{self._prompt_prefix} {prompt}"
+            "content": self._prompt_processor.format(**kwargs)
         }]
         original_messages = copy.deepcopy(messages)
         messages_with_error = original_messages
-        messages_with_error[-1]["content"] += self._format_instruction
         output = ""
         while True:
             try:
                 raw_output = self._run(messages_with_error)
                 logger.debug(f"Raw output is {raw_output}")
                 try:
-                    if self._output_schema:
-                        output = self.parse_output(raw_output)
-                        logger.debug(f"parsed output is {output}")
-                        output = output[self._termination_observation]
-                    else:
-                        output = raw_output
+                    output = self._prompt_processor.parse_output(raw_output)
+                    logger.debug(f"parsed output is {output}")
                     return output
                 except Exception as e:
                     logger.warning(f"Error parsing output with error. {e}")
@@ -302,7 +291,7 @@ class OneshotAgent(BaseAgent):
                         },
                         {
                             "role": "user",
-                            "content": f"Failed to parse output. Ignore all the format instructions you were given previously. Your output must be a json that strictly follow the schema while not including it {self._output_schema}"
+                            "content": f"Failed to parse output. Please check if the output is aligned with the format requirements and example schema and regenerate."
                         },
                     ]
             except Exception as e:
@@ -310,6 +299,7 @@ class OneshotAgent(BaseAgent):
             if num_retries >= self.MAX_NUM_RETRIES:
                 if num_retries >= self.MAX_NUM_RETRIES:
                     logger.debug("Max number of retries exceeded")
+                output = "Sorry, I failed to generate the required json schema"
                 break
             num_retries += 1
         return output
@@ -372,6 +362,34 @@ class BaseMilvusStore():
 
     def remove_collection(self, knowledge_base_collection_id):
         utility.drop_collection(knowledge_base_collection_id)
+
+
+class PromptProcessor:
+    def __init__(self, conversation_setup: str, template: str, output_schema=None) -> None:
+        self._template = template
+        self._conversation_setup = conversation_setup
+        self._output_schema = output_schema
+        # TODO: check output schema to make sure the first layer key is "output"
+
+    def get_conversation_setup(self):
+        return self._conversation_setup
+
+    def format(self, **kwargs):
+        print("kwargs are", kwargs)
+        print("template is", self._template)
+        return pystache.render(self._template, kwargs)
+
+    def parse_output(self, raw_output):
+        if self._output_schema:
+            logger.debug(f'parsing {raw_output}')
+            parsed_output = fix_and_parse_json(raw_output)
+            logger.debug(f"parse success, output is {parsed_output}")
+            logger.debug(f"validating with schema {self._output_schema}")
+            validated_output = validate_json(
+                parsed_output, self._output_schema)
+            return validated_output
+        else:
+            return raw_output
 
 
 class Connector():

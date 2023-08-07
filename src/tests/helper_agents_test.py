@@ -6,6 +6,7 @@ from agentware.base import OneshotAgent
 from agentware.agent_logger import Logger
 from agentware import HELPER_AGENT_CONFIGS_DIR_NAME
 from agentware.core_engines import CoreEngineBase
+from agentware.helper_agents import summarizer_agent, attribute_question_agent, attribute_agent
 from utils import DbClient, FakeCoreEngine
 logger = Logger()
 
@@ -31,6 +32,55 @@ class HelperAgentTests(unittest.TestCase):
     def tearDown(self):
         pass
 
+    def test_summarizer_agent(self):
+        expected_output = {
+            "output": "summary of text"
+        }
+
+        class SummarizerCoreEngine(CoreEngineBase):
+            def run(self, prompt):
+                return json.dumps(expected_output)
+        summarizer_agent.set_core_engine(SummarizerCoreEngine())
+        assert summarizer_agent.run(
+            text_to_summarize="some text") == expected_output
+
+    def test_attribute_question_agent(self):
+        expected_output = {
+            "output":
+                [
+                    {
+                        "name": "some name",
+                        "attribute": "some attributes",
+                        "reason": "the age of old joe is mentioned in the context"
+                    }
+                ]
+        }
+
+        class AttributeQuestionCoreEngine(CoreEngineBase):
+            def run(self, prompt):
+                return json.dumps(expected_output)
+        attribute_question_agent.set_core_engine(AttributeQuestionCoreEngine())
+        assert attribute_question_agent.run(
+            observations="some text") == expected_output
+
+    def test_attribute_agent(self):
+        expected_output = {
+            "output":
+                [
+                    {
+                        "name": "some name",
+                        "description": "some attributes"
+                    }
+                ]
+        }
+
+        class AttributeCoreEngine(CoreEngineBase):
+            def run(self, prompt):
+                return json.dumps(expected_output)
+        attribute_agent.set_core_engine(AttributeCoreEngine())
+        assert attribute_agent.run(
+            observations="some text", object_attributes=[{"name": "some object", "attribute": "some attribute"}]) == expected_output
+
     def test_conflict_resolver_agent(self):
         config = get_config("conflict_resolver.json")
         agent = OneshotAgent(config)
@@ -38,10 +88,10 @@ class HelperAgentTests(unittest.TestCase):
         class ConflictResolverCoreEngine(CoreEngineBase):
 
             def run(self, prompt):
-                return "{\"wrong_facts\": [2]}"
+                return '{"wrong_facts": [2]}'
         agent.set_core_engine(ConflictResolverCoreEngine())
         result = agent.run(
-            '{\"observations\": [\"Daenerys bought the dragon\"], \"facts\": [{\"id\": 2, \"fact\": \"Daenerys has nothing\"}, {\"id\": 3, \"fact\": \"John snow is playing basketball with a dragon\"}]}')
+            '{"observations": ["Daenerys bought the dragon"], "facts": [{"id": 2, "fact": "Daenerys has nothing"}, {"id": 3, "fact": "John snow is playing basketball with a dragon"}]}')
         assert result == "[2]"
 
     def test_status_questions(self):

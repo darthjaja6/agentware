@@ -16,6 +16,7 @@ setup(
         "openai",
         "jwt",
         "colorlog",
-        "python-dotenv"
+        "python-dotenv",
+        "pystache"
     ],
 )
