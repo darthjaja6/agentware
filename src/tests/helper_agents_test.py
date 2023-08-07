@@ -44,6 +44,20 @@ class HelperAgentTests(unittest.TestCase):
             '{\"observations\": [\"Daenerys bought the dragon\"], \"facts\": [{\"id\": 2, \"fact\": \"Daenerys has nothing\"}, {\"id\": 3, \"fact\": \"John snow is playing basketball with a dragon\"}]}')
         assert result == "[2]"
 
+    def test_status_questions(self):
+        config = get_config("attribute_question.json")
+        agent = OneshotAgent(config)
+        result = agent.run(
+            "Mom bought a fish just now. It's on the second layer of the fridge. Dad turned the TV on. Ok, I moved it to a plate on the table. Dad turned the TV off.")
+        print("result is", result)
+
+    def test_fact(self):
+        config = get_config("detector.json")
+        agent = OneshotAgent(config)
+        result = agent.run(
+            "Mom bought a fish just now. It's on the second layer of the fridge. Dad turned the TV on. Ok, I moved it to a plate on the table. Dad turned the TV off.")
+        print("result is", result)
+
 
 if __name__ == '__main__':
     unittest.main()

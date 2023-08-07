@@ -173,10 +173,8 @@ class BaseAgent:
 
     def __init__(self):
         self._config = None
-        self._format_instruction = ""
         self._output_schema = ""
-        self._prompt_prefix = ""
-        self._format_examples = ""
+        self._prompt_template = ""
         self._core_engine = OpenAICoreEngine()
 
     @classmethod
@@ -197,6 +195,8 @@ class BaseAgent:
         return self._core_engine.get_embeds(text)
 
     def set_config(self, cfg: Dict[str, any]):
+        assert "name" in cfg
+        self.id = cfg["name"]
         self._config = cfg
         # output format
         if "output_format" in cfg:
@@ -289,9 +289,7 @@ class OneshotAgent(BaseAgent):
                     if self._output_schema:
                         output = self.parse_output(raw_output)
                         logger.debug(f"parsed output is {output}")
-                        # Whatever sub structure in outupt is dumped to str
-                        output = json.dumps(
-                            output[self._termination_observation])
+                        output = output[self._termination_observation]
                     else:
                         output = raw_output
                     return output
@@ -372,6 +370,9 @@ class BaseMilvusStore():
         expr = f"id in {ids_to_delete}"
         c.delete(expr)
 
+    def remove_collection(self, knowledge_base_collection_id):
+        utility.drop_collection(knowledge_base_collection_id)
+
 
 class Connector():
     """
@@ -413,14 +414,18 @@ class Connector():
             return None
 
     def remove_agent(self, agent_id: str):
+        knowledge_base_identifier = self._get_knowledge_base_id(agent_id)
         # URL to send the request tor
         url = os.path.join(agentware.endpoint, "remove_agent")
         headers = {
             'Authorization': f'Bearer {agentware.api_key}'
         }
         data = json.dumps({
-            "agent_id": agent_id
+            "agent_id": agent_id,
+            "knowledge_base_collection_id": knowledge_base_identifier
         })
+        logger.debug(
+            f"Removing agent {agent_id} with its vectors in collection {knowledge_base_identifier}")
         response = requests.put(url, headers=headers, data=data)
         # Check the response status code
         if response.status_code == 200:

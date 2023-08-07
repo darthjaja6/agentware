@@ -54,6 +54,7 @@ class Agent(BaseAgent):
 
         def __exit__(self, exc_type, exc_val, exc_tb):
             # update knowledge
+            self.obj.push()
             self.obj._update_mode = False
 
     def run(self, prompt):
@@ -62,9 +63,12 @@ class Agent(BaseAgent):
         raw_output = ""
         logger.debug(f"Adding prompt to memory: {prompt}")
         self._memory.update_context(self._prompt_prefix, prompt)
+        format_instruction = self._format_instruction
+        if self._update_mode:
+            format_instruction += " you only have to respond with something like 'ack' or 'gotcha' if you received a statement and not asked to answer a question or complete a task"
         self._memory.add_memory({
             "role": "user",
-            "content": f"{self._prompt_prefix} {prompt} {self._format_instruction}."
+            "content": f"{self._prompt_prefix} {prompt} {format_instruction}."
         })
         memory_with_error = copy.deepcopy(self._memory)
         logger.info(f"Copy of memory made: {memory_with_error}")
@@ -114,25 +118,29 @@ class Agent(BaseAgent):
                 break
             num_retries += 1
 
-    def exists(self):
-        if not self.id:
-            return False
-        return agent_exists(self.id)
+    def clear_memory(self):
+        self._memory.clear()
+    # def exists(self):
+    #     if not self.id:
+    #         return False
+    #     return agent_exists(self.id)
 
-    def remove(self):
-        assert self.id
-        remove_agent(self.id)
+    # def remove(self):
+    #     assert self.id
+    #     remove_agent(self.id)
 
-    def register(self, agent_id: str = ""):
-        if not agent_id:
-            agent_id = self.id
-        assert agent_id
-        register_agent(agent_id)
-        self.id = agent_id
-        self._memory.agent_id = agent_id
+    # def register(self):
+    #     assert self.id
+    #     register_agent(self.id)
 
     def push(self):
         # Check agent id valid
         assert self.id
+        # Digest memory
+        memory_text = ""
+        for m in self._memory.get_memory():
+            memory_text += f"{m.role}: {m.content}\n"
+        self._memory.extract_and_update_knowledge(memory_text)
         logger.debug(f"Pushing agent with name {self.id}")
         self._memory.update_agent()
+        self._memory.clear()

@@ -76,9 +76,13 @@ class DbClient:
         return self.client.keys()
 
     def get_agent(self, agent_id: int) -> Tuple[Dict[any, any], Dict[str, any], List[Dict], List[Dict], str]:
+        print("agent id is", agent_id)
         memory_agent_json = self.client.get(agent_id)
-        if not memory_agent_json:
+        if memory_agent_json is None:
             return None, None
+        memory_agent_json = memory_agent_json.decode()
+        if memory_agent_json == '':
+            return dict(), []
         memory_agent = json.loads(memory_agent_json)
         return memory_agent["agent_config"], memory_agent["memory"]
 

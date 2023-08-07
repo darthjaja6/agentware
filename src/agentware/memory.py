@@ -155,13 +155,12 @@ class Memory():
         if keyword:
             new_knowledges = self.connector.search_knowledge(
                 self._agent.id, self._agent.get_embeds(keyword), token_limit=self.MAX_NUM_TOKENS_KNOWLEDGE)
-            logger.debug(f"Updated new knowledge to {new_knowledges}")
         else:
             logger.debug(
                 "Keyword is empty, fetching most recent knowledge instead")
             new_knowledges = self.connector.get_recent_knowledge(
                 self._agent.id)
-        self.update_knowledge(new_knowledges)
+        self.update_local_knowledge(new_knowledges)
         # query for commands
         # self._commands = self.connector.search_commands(self._agent.get_embeds(keyword))
         print("domain knowledges are", self._domain_knowledge)
@@ -182,7 +181,6 @@ class Memory():
             self._agent.id, self._agent.get_embeds(keyword), token_limit=self.MAX_NUM_TOKENS_KNOWLEDGE)
         # Compare the facts in memory with the relevant knowledge, mark the ones that need to be updated
         knowledge_ids_to_remove = []
-        logger.debug()
         observations_old_facts = {
             "observations": facts,
             "facts": [k.to_json() for k in relevant_knowledges]
@@ -227,7 +225,34 @@ class Memory():
         self._num_tokens_memory = num_tokens_not_compressed + compressed_memory.num_tokens
         logger.info("memory after compressing is")
         logger.info(self.__str__())
-        reflections, ids_to_remove = self.reflect(memory_text)
+        self.extract_and_save_knowledge(memory_text)
+
+        # reflections, ids_to_remove = self.reflect(memory_text)
+        # # Remove knowledges
+        # logger.debug(f"Removing ids {ids_to_remove} from knowledge base")
+        # try:
+        #     self.connector.remove_knowledge(self._agent.id, ids_to_remove)
+        # except Exception as e:
+        #     logger.warning(f"Failed to remove ids with error {e}")
+        # # Save agent and add to knowledge
+        # assert self.connector
+        # for i, knowledge in enumerate(reflections):
+        #     if knowledge.embeds:
+        #         continue
+        #     embeds = self._agent.get_embeds(knowledge.content)
+        #     reflections[i].update_embeds(embeds)
+        # self.connector.save_knowledge(self._agent.id, reflections)
+
+        self.connector.update_longterm_memory(
+            self._agent.id, memory_to_compress)
+        # Update current agent
+        self.update_agent()
+        return memory_to_compress
+
+    def extract_and_update_knowledge(self, data: str):
+        """ Extracts knowledge from data and save it
+        """
+        reflections, ids_to_remove = self.reflect(data)
         # Remove knowledges
         logger.debug(f"Removing ids {ids_to_remove} from knowledge base")
         try:
@@ -235,18 +260,13 @@ class Memory():
         except Exception as e:
             logger.warning(f"Failed to remove ids with error {e}")
         # Save agent and add to knowledge
-        if self.connector:
-            for i, knowledge in enumerate(reflections):
-                if knowledge.embeds:
-                    continue
-                embeds = self._agent.get_embeds(knowledge.content)
-                reflections[i].update_embeds(embeds)
-            self.connector.save_knowledge(self._agent.id, reflections)
-            self.connector.update_longterm_memory(
-                self._agent.id, memory_to_compress)
-            # Update current agent
-            self.update_agent()
-        return memory_to_compress
+        assert self.connector
+        for i, knowledge in enumerate(reflections):
+            if knowledge.embeds:
+                continue
+            embeds = self._agent.get_embeds(knowledge.content)
+            reflections[i].update_embeds(embeds)
+        self.connector.save_knowledge(self._agent.id, reflections)
 
     def update_agent(self):
         self.connector.update_agent(
@@ -261,9 +281,10 @@ class Memory():
         if self._num_tokens_memory > self.MAX_NUM_TOKENS_MEMORY:
             self._compress_memory(reflect=True)
 
-    def update_knowledge(self, knowledges: List[Knowledge]):
+    def update_local_knowledge(self, knowledges: List[Knowledge]):
         for k in knowledges:
             self._num_tokens_domain_knowledge += k.num_tokens
+            self._domain_knowledge.append(k)
             if self._num_tokens_domain_knowledge > self.MAX_NUM_TOKENS_KNOWLEDGE:
                 break
 
@@ -279,6 +300,9 @@ class Memory():
                 return
         self._num_tokens_memory -= self._memory[memory_index].num_tokens
         del self._memory[memory_index]
+
+    def clear(self):
+        self._memory = []
 
     def to_messages(self):
         domain_knowledge_str = "No domain knowledge obtained"

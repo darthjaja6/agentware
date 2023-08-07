@@ -45,7 +45,7 @@ def get_agent(request, **kwargs):
                 "error_code": error_codes.INVALID_AGENT_ID})
         agent_config, memory_units = db_client.get_agent(
             agent_id)
-        if not agent_config:
+        if agent_config is None:
             return JsonResponse({
                 "success": False,
                 "error_code":  error_codes.AGENT_NOT_FOUND.code}, safe=False)
@@ -226,11 +226,14 @@ def remove_agent(request, **kwargs):
     try:
         data = json.loads(request.body)
         agent_id = data['agent_id']
+        knowledge_base_collection_id = data['knowledge_base_collection_id']
         if not agent_id:
             raise ValueError(f"agent id empty")
-        if not agent_id:
-            raise ValueError(f"agent id empty")
+        if not knowledge_base_collection_id:
+            raise ValueError(f"knowledge_base_collection_id empty")
         db_client.remove_agent(agent_id)
+        print("Removing colelction", knowledge_base_collection_id)
+        knowledge_base_client.remove_collection(knowledge_base_collection_id)
         return JsonResponse({
             "success": True
         }, safe=False)
