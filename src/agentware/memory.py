@@ -1,5 +1,6 @@
 from typing import Dict, List, Tuple
 from agentware.base import MemoryUnit, Knowledge, Connector, OneshotAgent, BaseAgent
+from agentware.helper_agents import summarizer_agent, attribute_question_agent, attribute_agent, conflict_detector_agent
 from agentware.agent_logger import Logger
 from agentware import HELPER_AGENT_CONFIGS_DIR_NAME
 
@@ -47,8 +48,6 @@ class Memory():
              agent: BaseAgent):
         logger.debug("initializing memory")
         memory = cls(agent)
-        if "conversation_setup" in agent_config:
-            memory._context = agent_config["conversation_setup"]
         memory._memory = working_memory
         agent.set_config(agent_config)
         return memory
@@ -72,12 +71,11 @@ class Memory():
         summarizer_agent_config = None
         with open(summarize_agent_config_path, "r") as f:
             summarizer_agent_config = json.loads(f.read())
-        agents["summarizer"] = OneshotAgent(summarizer_agent_config)
+        agents["summarizer"] = summarizer_agent
         # Reflection question
         ref_q_agent_config = None
         with open(ref_q_agent_config_path, "r") as f:
             ref_q_agent_config = json.loads(f.read())
-        agents["reflection_q"] = OneshotAgent(ref_q_agent_config)
         # Reflection
         ref_agent_config = None
         with open(ref_agent_config_path, "r") as f:
@@ -100,6 +98,9 @@ class Memory():
 
     def get_context(self) -> str:
         return self._context
+
+    def set_context(self, context: str):
+        self._context = context
 
     def get_domain_knowledge(self) -> List[Knowledge]:
         return self._domain_knowledge
@@ -145,9 +146,9 @@ class Memory():
         """
         return seed
 
-    def update_context(self, prompt_prefix: str, prompt: str):
+    def update_context(self, prompt: str):
         logger.info(
-            f"Preparing for running prompt {prompt} and prefix {prompt_prefix}")
+            f"Preparing for running prompt {prompt}")
         # Get relevant knowledge
         keyword = self.get_query_term(prompt)
         logger.debug(f"search keywords for knowledge retrieval: {keyword}")
@@ -163,30 +164,37 @@ class Memory():
         self.update_local_knowledge(new_knowledges)
         # query for commands
         # self._commands = self.connector.search_commands(self._agent.get_embeds(keyword))
-        print("domain knowledges are", self._domain_knowledge)
         # print("commands are", self._commands)
 
     def reflect(self, memory_text, context=None) -> List[Knowledge]:
         # context gives information on what job the agent is doing.
         logger.debug(f"Making reflection from {memory_text}")
         # Make reflection on compressed memory
-        # Step1: Extract facts.
-        facts = self._helper_agents["fact"].run(
-            f"```{memory_text}```, extract all facts and insights concisely from the text above and make sure each fact has clear meaning if viewed independently. Each fact should not exceed 10 tokens.")
-        logger.debug(f"facts are {facts}")
-        new_knowledges = [Knowledge(int(time.time()), fact) for fact in facts]
+        # Step1: Get attributes
+        objects_attributes = attribute_question_agent.run(
+            observations=memory_text)
+        # Step2: Get attribute values
+        attribute_values = attribute_agent.run(
+            observations=memory_text, object_attributes=str(objects_attributes))
+        observations = [
+            f'{r["object"]} {r["attribute"]} {r["value"]}' for r in attribute_values]
+        logger.info(f"observations are {observations}")
+        new_knowledges = [Knowledge(int(time.time()), fact)
+                          for fact in observations]
         # Get keywords from memory text
         keyword = self.get_query_term(memory_text)
         relevant_knowledges = self.connector.search_knowledge(
             self._agent.id, self._agent.get_embeds(keyword), token_limit=self.MAX_NUM_TOKENS_KNOWLEDGE)
         # Compare the facts in memory with the relevant knowledge, mark the ones that need to be updated
         knowledge_ids_to_remove = []
-        observations_old_facts = {
-            "observations": facts,
-            "facts": [k.to_json() for k in relevant_knowledges]
-        }
-        knowledge_ids_to_remove = self._helper_agents["conflict_resolver"].run(
-            json.dumps(observations_old_facts))
+        if relevant_knowledges:
+            observations_and_records = {
+                "observations": ".".join(observations),
+                "records": [k.to_json() for k in relevant_knowledges]
+            }
+            knowledges_to_remove = conflict_detector_agent.run(
+                observations_and_records=json.dumps(observations_and_records))
+            knowledge_ids_to_remove = [k["id"] for k in knowledges_to_remove]
         return new_knowledges, knowledge_ids_to_remove
 
     def _compress_memory(self, reflect=False) -> Tuple[List[MemoryUnit], List[Knowledge]]:
@@ -252,6 +260,7 @@ class Memory():
     def extract_and_update_knowledge(self, data: str):
         """ Extracts knowledge from data and save it
         """
+        logger.debug(f"Making reflection from data {data}")
         reflections, ids_to_remove = self.reflect(data)
         # Remove knowledges
         logger.debug(f"Removing ids {ids_to_remove} from knowledge base")
@@ -305,36 +314,41 @@ class Memory():
         self._memory = []
 
     def to_messages(self):
-        domain_knowledge_str = "No domain knowledge obtained"
+        domain_knowledge_str = ""
         if self._domain_knowledge:
-            domain_knowledge_str = f"Your domain knowledge is between the triple apostrophes: ```{';'.join([k.content for k in self._domain_knowledge])}```"
-        commands_str = "No command"
+            domain_knowledge_str = f"Your domain knowledge is between the below triple backsticks: ```{';'.join([k.content for k in self._domain_knowledge])}```"
+        commands_str = ""
         # TODO: Maybe it shouldn't be pronounced as
         if self._commands:
-            commands_str = f"""The external tools you can use is between the triple apostrophes```{
+            commands_str = f"""The external tools you can use is between the below triple backsticks```{
                 ';'.join([c.to_prompt() for c in self._commands])
             }```"""
         commands_str = ""
-        return [
-            {
+        print("context is", self._context)
+        messages = []
+        if self._context:
+            messages.append({
                 "role": "system",
                 "content": self._context
-            },
-            {
+            })
+        if domain_knowledge_str:
+            messages.append({
                 "role": "system",
                 "content": domain_knowledge_str
-            },
-            {
+            })
+        if commands_str:
+            messages.append({
                 "role": "system",
                 "content": commands_str
-            }
-        ] + [
+            })
+        messages += [
             {
                 "role": memory_unit.role,
                 "content": memory_unit.content
             }
             for memory_unit in self._memory
         ]
+        return messages
 
     def __str__(self) -> str:
         prefix = f'\n************* Memory({self._num_tokens_memory + self._num_tokens_context + self._num_tokens_domain_knowledge} tokens) *************\n'
@@ -350,8 +364,7 @@ class Memory():
         return self.__str__()
 
     def __deepcopy__(self, memodict={}):
-        cpyobj = type(self).init(self._agent._config,
-                                 self._memory, self._agent)  # shallow copy of whole object
+        cpyobj = type(self)(self._agent)  # shallow copy of whole object
         cpyobj._domain_knowledge = copy.deepcopy(
             self._domain_knowledge, memodict)
         cpyobj._commands = copy.deepcopy(
@@ -359,4 +372,7 @@ class Memory():
         cpyobj._memory = copy.deepcopy(self._memory, memodict)
         cpyobj._helper_agents = {agent_name: copy.deepcopy(
             agent) for agent_name, agent in self._helper_agents.items()}
+        cpyobj._context = self.get_context()
+        print("self context is", self.get_context())
+        print("copied context is", cpyobj.get_context())
         return cpyobj

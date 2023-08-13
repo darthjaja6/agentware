@@ -172,20 +172,10 @@ class BaseAgent:
     MODEL_NAME = "gpt-3.5-turbo-16k-0613"
     MAX_NUM_RETRIES = 3
 
-    def __init__(self, name, prompt_processor=None):
-        self._name = name
+    def __init__(self, id, prompt_processor=None):
+        self.id = id
         self._prompt_processor = prompt_processor
         self._core_engine = OpenAICoreEngine()
-
-    @classmethod
-    def init(cls, cfg: Dict[str, any]):
-        agent = cls()
-        if not cfg:
-            raise Exception("Invalid config")
-        if (not cfg["name"]):
-            raise Exception("config missing required entry {cfg}")
-        agent.set_config(cfg)
-        return agent
 
     def set_core_engine(self, core_engine):
         logger.debug(f"Setting core engine to {core_engine}")
@@ -228,9 +218,6 @@ class BaseAgent:
         if "prompt_prefix" in cfg:
             self.prompt_prefix = cfg["prompt_prefix"]
 
-    def get_config(self) -> Dict[str, any]:
-        return self._config
-
     def _messages_to_str(self, messages: List[Dict[str, str]]) -> str:
         message_prefix = "\n************* Conversation *************\n"
         message_suffix = "\n********* End of Conversation *********\n"
@@ -261,15 +248,21 @@ class OneshotAgent(BaseAgent):
     def __init__(self, prompt_processor=None):
         super().__init__("", prompt_processor)
 
-    def run(self, **kwargs) -> str:
+    def run(self, *args, **kwargs) -> str:
         num_retries = 0
         raw_output = ""
-        messages = [{
-            "role": "system",
-            "content": self._prompt_processor.get_conversation_setup()
-        }] + [{
+        messages = []
+        conversation_setup = self._prompt_processor.get_conversation_setup()
+        if conversation_setup:
+            messages += [{
+                "role": "system",
+                "content": conversation_setup
+            }]
+        prompt = self._prompt_processor.format(*args, **kwargs)
+        logger.debug(f"prompt is {prompt}")
+        messages += [{
             "role": "user",
-            "content": self._prompt_processor.format(**kwargs)
+            "content": prompt
         }]
         original_messages = copy.deepcopy(messages)
         messages_with_error = original_messages
@@ -291,7 +284,7 @@ class OneshotAgent(BaseAgent):
                         },
                         {
                             "role": "user",
-                            "content": f"Failed to parse output. Please check if the output is aligned with the format requirements and example schema and regenerate."
+                            "content": f"Failed to parse output. Your content is great, regenerate with the same content in a format that aligns with the requirements and example schema."
                         },
                     ]
             except Exception as e:
@@ -374,9 +367,12 @@ class PromptProcessor:
     def get_conversation_setup(self):
         return self._conversation_setup
 
-    def format(self, **kwargs):
-        print("kwargs are", kwargs)
-        print("template is", self._template)
+    def format(self, *args, **kwargs):
+        if not self._template:
+            if not len(args) == 1:
+                raise BaseException(
+                    "One and only one arg is required to format for empty template")
+            return args[0]
         return pystache.render(self._template, kwargs)
 
     def parse_output(self, raw_output):
@@ -387,7 +383,7 @@ class PromptProcessor:
             logger.debug(f"validating with schema {self._output_schema}")
             validated_output = validate_json(
                 parsed_output, self._output_schema)
-            return validated_output
+            return validated_output["output"]
         else:
             return raw_output
 

@@ -1,17 +1,15 @@
 import unittest
 
 from agentware import hub
-from agentware.base import OneshotAgent, Connector
+from agentware.base import PromptProcessor
 from agentware.agent import Agent
 from agentware.agent_logger import Logger
 from utils import DbClient, FakeCoreEngine, SummarizerCoreEngine, FactCoreEngine
 logger = Logger()
 
-TEST_CFG = {
-    "name": "test agent",
-            "conversation_setup": "You are DarthHololens, an AI assistant who lives in the universe of Star Wars series and knows everything about this world",
-            "prompt_prefix": "Constraint: answer in no more than 200 tokens"
-}
+AGENT_ID = "test agent"
+PROMPT_PROCESSOR = PromptProcessor(
+    "You are DarthJaja, an AI assistant who lives in the universe of Star Wars series and knows everything about this world", "")
 
 
 class AgentWorkflowTests(unittest.TestCase):
@@ -45,16 +43,14 @@ class AgentWorkflowTests(unittest.TestCase):
         self.assertRaises(ValueError, Agent.pull, "some/unexisted")
 
     def test_register_and_push_and_fetch_and_run_agent(self):
-        agent = Agent()
-        agent_id = "some_agent_name"
-        agent.register(agent_id)
-        agent.set_config(TEST_CFG)
+        agent = Agent(AGENT_ID)
+        agent.register()
         agent.push()
         agents = hub.list_agents()
         print("agents are", agents)
-        assert agents[0] == agent_id
-        updated_agent = Agent.pull(agent_id)
-        assert updated_agent.get_config() == TEST_CFG
+        assert agents[0] == AGENT_ID
+        updated_agent = Agent.pull(AGENT_ID)
+        assert updated_agent.get_id() == AGENT_ID
 
     def test_agent_exist_remove(self):
         agent_id = "some_agent_name"
@@ -67,7 +63,7 @@ class AgentWorkflowTests(unittest.TestCase):
         assert not agent.exists()
 
     def test_memory_compression(self):
-        agent = Agent.init(TEST_CFG)
+        agent = Agent(TEST_CFG)
         agent.set_core_engine(self.main_core_engine)
         agent._memory._helper_agents["summarizer"].set_core_engine(
             SummarizerCoreEngine())
@@ -77,7 +73,7 @@ class AgentWorkflowTests(unittest.TestCase):
             agent.run("What is your name?")
 
     def test_agent_reflection_run_in_update_mode(self):
-        agent = Agent.init(TEST_CFG)
+        agent = Agent(AGENT_ID, PROMPT_PROCESSOR)
         assert agent._update_mode == False
         with agent.update():
             assert agent._update_mode == True
