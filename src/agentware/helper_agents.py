@@ -3,7 +3,7 @@ from agentware.base import OneshotAgent, PromptProcessor
 # conversation_setup: str, template: str, output_schema=None
 summarizer_agent = OneshotAgent(PromptProcessor(
     "You are a professional writer who is very good at summarizing texts",
-    'You will be given a list of conversation between user and assistant. Your task is to make a summary of valuable information from them. Your output must be a json in the following format: {"output": <your summary here>}. Now summarize the text in the triple backticks: ```{{text_to_summarize}}```',
+    'You will be given a list of conversation between user and assistant. Your task is to make a summary of valuable information from them. Your output must be a json in the following format: {"output": <your summary here>}. Now summarize the text in the triple backticks: ```{{{text_to_summarize}}}```',
     {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
@@ -16,7 +16,7 @@ summarizer_agent = OneshotAgent(PromptProcessor(
 
 attribute_question_agent = OneshotAgent(PromptProcessor(
     "",
-    'Given the context of the a list of conversations between user and assistant in triple backsticks: ```{{observations}}``` List all the attributes you already know about the the objects mentioned above. Focus more on the words of the user because it is more important. The attributes should reflect the current status of the object, with no duplication. Output must be a json in the following format:{"output": [{"object": <the name of the object>, "attribute": <the name of the attribute>, "reason": <the reason of selecting this attribute>}, ...]}. Your output is:',
+    'Given the context of the a list of conversations between user and assistant in triple backsticks: ```{{{observations}}}``` List all the attributes you already know about the the objects mentioned above. Focus more on the words of the user because it is more important. The attributes should reflect the current status of the object, with no duplication. Output must be a json in the following format:{"output": [{"object": <the name of the object>, "attribute": <the name of the attribute>, "reason": <the reason of selecting this attribute>}, ...]}. Your output is:',
     {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
@@ -47,7 +47,7 @@ attribute_question_agent = OneshotAgent(PromptProcessor(
 
 attribute_agent = OneshotAgent(PromptProcessor(
     "",
-    'Given the context of the below observations between triple backsticks: ```{{observations}}```, Use one short sentence to describe the current status of all the objects: {{object_attributes}} For each of the entries above, write the value of its attribute. Output must be a json in the format of {"output": [{"object": < name of the object >, "attribute": "<the attribute>", "value": <the value of the attribute given the status of the object in observations> }, ...(other objects)]}. For example, {"output": [{"object": "old joe", "attribute": "age", "value": "69 years old"}]}. Your output is:',
+    'Given the context of the below observations between triple backsticks: ```{{{observations}}}```, Use one short sentence to describe the current status of all the objects: {{{object_attributes}}} For each of the entries above, write the value of its attribute. Output must be a json in the format of {"output": [{"object": < name of the object >, "attribute": "<the attribute>", "value": <the value of the attribute given the status of the object in observations> }, ...(other objects)]}. For example, {"output": [{"object": "old joe", "attribute": "age", "value": "69 years old"}]}. Your output is:',
     {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
@@ -77,8 +77,8 @@ attribute_agent = OneshotAgent(PromptProcessor(
     }))
 
 conflict_detector_agent = OneshotAgent(PromptProcessor(
-    "",
-    'The data is in the triple backsticks below: ```{{observations_and_records}}```. The "observations" field is a list of new observations, while the "records" field contains the records before the observations, each with and id. Your job is to help find out which of the records are no longer true on the condition of the observation, give the ids of the them and rough reason. List the ids of the facts if they are wrong given the observations. Do not write any code, simply give the final output. Example output is {"output": [{"id": 1, "reason": "Record 1 shows that flight 484 s normal, but the observation shows it is canceled"}, {"id": 17856839541, "reason": "Record 17856839541 shows that it is going to rain tomorrow. However the observation shows that the weather forcast is sunny"}]}. Your output is:',
+    "You are an expert who is good at finding the logic flaw and contrary between past records and present observations.",
+    'Given the observations and records data in the triple backsticks below: ```{{{observations_and_records}}}```. The "observations" field is a list of new observations, while the "records" field contains the records before the observations, each with and id. Your job is to help find out which of the records are no longer true on the condition of the observation, give the ids of the them and rough reason. List the ids of the facts if they are wrong given the observations. Do not write any code, simply give the final output. Example output is {"output": [{"id": 1, "reason": "Record 1 shows that flight 484 s normal, but the observation shows it is canceled"}, {"id": 17856839541, "reason": "Record 17856839541 shows that it is going to rain tomorrow. However the observation shows that the weather forcast is sunny"}]}. Your output is:',
     {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",

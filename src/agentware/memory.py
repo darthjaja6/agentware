@@ -175,7 +175,7 @@ class Memory():
             observations=memory_text)
         # Step2: Get attribute values
         attribute_values = attribute_agent.run(
-            observations=memory_text, object_attributes=str(objects_attributes))
+            observations=memory_text, object_attributes=objects_attributes)
         observations = [
             f'{r["object"]} {r["attribute"]} {r["value"]}' for r in attribute_values]
         logger.info(f"observations are {observations}")
@@ -193,7 +193,7 @@ class Memory():
                 "records": [k.to_json() for k in relevant_knowledges]
             }
             knowledges_to_remove = conflict_detector_agent.run(
-                observations_and_records=json.dumps(observations_and_records))
+                observations_and_records=observations_and_records)
             knowledge_ids_to_remove = [k["id"] for k in knowledges_to_remove]
         return new_knowledges, knowledge_ids_to_remove
 
