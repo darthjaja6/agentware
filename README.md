@@ -4,8 +4,8 @@ Agentware is an AI agent library. The agent builds knowledge base on the fly whe
 
 ## Main Features
 
-- On the fly learning: During conversation with the user, the agent reflects and extracts knowledge. The knowledge can then be used any time the user comes back to relevant topic.
-- Unlimited conversation: The agent compresses memory dynamically with reflection, so that memory length is controlled within a limit without losing context
+- On the fly learning: During conversation with the user, the agent reflects and extracts knowledge. The knowledge can then be used any time the user comes back to relevant topic. When old knowledge is no longer correct, the agent can update it with new truth.
+- Unlimited conversation: The agent compresses memory dynamically with reflection, so that memory length is controlled within a limit without losing context.
 
 ## Quick start guide
 
