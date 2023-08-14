@@ -94,20 +94,11 @@ From the result, the agent knows the updated location of the fish.
 
 ### Unlimited conversation
 
-In `examples/space_travellers.py`, two space travellers reunit and chat about each others' experience in travelling through the galaxy. Simply `cd examples` and run it with `python3 space_travellers.py`, the conversation conversation can continue forever(Watch out for your OpenAI api balance!). You can also view the knowledge about the planets, species, etc. of their world in the knowledge base.
+In `examples/space_travellers.py`, two space travellers reunit and chat about each others' experience in travelling through the galaxy. Simply `cd examples` and run it with `python3 space_travellers.py`, the conversation conversation can continue forever(Watch out for your OpenAI api balance!). You can also view the knowledge about the planets, species, etc. of their world in the knowledge base. In the end you can see something like this
 
-```
-agent = Agent.pull(agent_id)
-with agent.update():
-    print("AI response:", agent.run(
-        "Ok, I moved the fish to a plate on the table"))
-```
+![Alt text](image.png)
 
-Now from this conversation, the agent learns what happens to the fish(it's location is changed), and updates the knowledge base to reflect this change.
+### FAQ
 
-We can again go away to do something else. Then when we come back and ask the fish's location, the agent will tell us the most updated information.
-
-```
-agent = Agent.pull(agent_id)
-print("AI response:", agent.run("Where's the fish?"))
-```
+1. How to view my knowledge base?
+   The knowledges are stored in a Milvus vector db. You can view it with Attu at http://localhost:8000
