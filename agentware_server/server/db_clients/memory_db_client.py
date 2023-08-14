@@ -78,6 +78,7 @@ class DbClient:
     def get_agent(self, agent_id: int) -> Tuple[Dict[any, any], Dict[str, any], List[Dict], List[Dict], str]:
         print("agent id is", agent_id)
         memory_agent_json = self.client.get(agent_id)
+        print("memory agent json is", memory_agent_json)
         if memory_agent_json is None:
             return None, None
         memory_agent_json = memory_agent_json.decode()
@@ -92,6 +93,7 @@ class DbClient:
             "agent_config": agent_config,
             "memory": memory_units
         }
+        print("saved working memory is", working_memory)
         serialized_working_memory = json.dumps(working_memory)
         # Push each serialized dog to the list
         self.client.set(

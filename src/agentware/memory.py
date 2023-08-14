@@ -1,5 +1,5 @@
 from typing import Dict, List, Tuple
-from agentware.base import MemoryUnit, Knowledge, Connector, OneshotAgent, BaseAgent
+from agentware.base import MemoryUnit, Knowledge, Connector, OneshotAgent, BaseAgent, PromptProcessor
 from agentware.helper_agents import summarizer_agent, attribute_question_agent, attribute_agent, conflict_detector_agent
 from agentware.agent_logger import Logger
 from agentware import HELPER_AGENT_CONFIGS_DIR_NAME
@@ -18,12 +18,10 @@ class Memory():
     MAX_NUM_TOKENS_KNOWLEDGE = 200
 
     def __init__(self, agent: BaseAgent):
-        self._helper_agents = self.create_helper_agents()
         self._reflections = []
         self._commands = []
         self._domain_knowledge = []
         self._memory = []
-        self._context = ""
         self._num_tokens_memory = 0
         self._num_tokens_context = 0
         self._num_tokens_domain_knowledge = 0
@@ -49,7 +47,8 @@ class Memory():
         logger.debug("initializing memory")
         memory = cls(agent)
         memory._memory = working_memory
-        agent.set_config(agent_config)
+        prompt_processor = PromptProcessor.from_config(agent_config)
+        agent.init(prompt_processor)
         return memory
 
     def create_helper_agents(self) -> Dict[str, OneshotAgent]:
@@ -96,12 +95,6 @@ class Memory():
     def get_num_tokens_memory(self):
         return self._num_tokens_memory
 
-    def get_context(self) -> str:
-        return self._context
-
-    def set_context(self, context: str):
-        self._context = context
-
     def get_domain_knowledge(self) -> List[Knowledge]:
         return self._domain_knowledge
 
@@ -113,33 +106,6 @@ class Memory():
 
     def get_memory(self) -> List[MemoryUnit]:
         return self._memory
-
-    def get_helper_agents(self):
-        return self._helper_agents
-
-    def get_helper_agent_configs(self):
-        return {agent_name: agent.get_config()
-                for agent_name, agent in self._helper_agents.items()}
-
-    def reflect_original(self, memory_text):
-        """
-        A TBD class
-        这是按照 https://arxiv.org/pdf/2304.03442.pdf 来做的实现。
-        保留了原本的设计, 但可能不适用于数据处理工作。不同的场景下, memory内容
-        不一样, 有的是一系列事件的串联, 有的是针对某个话题的思辨。不同的memory
-        内容各有适用的reflection机制
-        """
-        # Step1: Ask questions
-        questions = self._helper_agents["reflection_q"].run(
-            f"```{memory_text}``` Given only the information above, what are the most insightful questions we can ask about the subjects in the statements?”")
-        answers = []
-        # Step2: Answer the questions.
-        # TODO: Follow the paper: https://arxiv.org/pdf/2304.03442.pdf and do similarity retrieval from agentware.memory, local knowledge and remote knowledge.
-        for q in questions:
-            answer = self._helper_agents["reflection"].run(
-                f"```{memory_text}``` {q}. Answer the question above within 10 tokens")
-            answers.append(answer)
-        logger.debug(answers)
 
     def get_query_term(self, seed) -> str:
         """ Extract search keywords from the query sentence.
@@ -224,8 +190,8 @@ class Memory():
         memory_text = ""
         for m in memory_to_compress:
             memory_text += f"{m.role}: {m.content}\n"
-        compressed_memory_content = self._helper_agents["summarizer"].run(
-            f"```{memory_text}```. Please make a summary of the conversation above in no more than 200 tokens. Respond with the summarization")
+        compressed_memory_content = summarizer_agent.run(
+            text_to_summarize=memory_text)
         compressed_memory = MemoryUnit(
             "user",  f"A summary of our past conversation: {compressed_memory_content}")
         self._memory = [compressed_memory] + \
@@ -280,7 +246,7 @@ class Memory():
     def update_agent(self):
         self.connector.update_agent(
             self._agent.id,
-            self._agent._config,
+            self._agent.config,
             self._memory)
 
     def add_memory(self, memory: Dict[str, str]):
@@ -324,12 +290,11 @@ class Memory():
                 ';'.join([c.to_prompt() for c in self._commands])
             }```"""
         commands_str = ""
-        print("context is", self._context)
         messages = []
-        if self._context:
+        if self._agent.get_conversation_setup():
             messages.append({
                 "role": "system",
-                "content": self._context
+                "content": self._agent.get_conversation_setup()
             })
         if domain_knowledge_str:
             messages.append({
@@ -353,7 +318,7 @@ class Memory():
     def __str__(self) -> str:
         prefix = f'\n************* Memory({self._num_tokens_memory + self._num_tokens_context + self._num_tokens_domain_knowledge} tokens) *************\n'
         suffix = f'\n************* End of Memory *************\n'
-        context_str = f'\n<context> [{self._num_tokens_context} tokens]: {self._context}\n'
+        context_str = f'\n<context> [{self._num_tokens_context} tokens]: {self._agent.get_conversation_setup()}\n'
         knowledge_str = f"\n<knowledge>: [{self._num_tokens_domain_knowledge}]\n" + "\n----------------------\n".join(
             [k.__str__() for k in self.get_domain_knowledge()])
         memory_str = f"<memory> [{self._num_tokens_memory} tokens]:\n" + "\n----------------------\n".join(
@@ -370,9 +335,4 @@ class Memory():
         cpyobj._commands = copy.deepcopy(
             self._commands, memodict)
         cpyobj._memory = copy.deepcopy(self._memory, memodict)
-        cpyobj._helper_agents = {agent_name: copy.deepcopy(
-            agent) for agent_name, agent in self._helper_agents.items()}
-        cpyobj._context = self.get_context()
-        print("self context is", self.get_context())
-        print("copied context is", cpyobj.get_context())
         return cpyobj

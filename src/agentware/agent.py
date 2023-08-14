@@ -17,27 +17,18 @@ class Agent(BaseAgent):
 
     @classmethod
     def pull(cls, agent_id: int):
-        logger.info("Creating agent from connector")
-        agent = cls()
+        agent = cls(agent_id)
         memory = Memory.pull(agent_id, agent)
+        logger.info(f"Pulled agent config is {agent.config}")
         agent.memory = memory
-        # ??? 应该把prompt template也push上去吗?
-        # push的理由: 下次可以直接拉下来，不用自己重新写prompt template. 方便交流传播
-        # 不push的理由: 如果prompt template可以拉来拉去，那为什么要把prompt template代码化呢? 直接做成config不好吗? 之前不config化的一个concern是，如果config化了，那么parse的逻辑就改了。现在看来parse的逻辑都是一样的, 也没什么好改.
-        # 那很显然就应该config化嘛
         return agent
 
     def __init__(self, id, prompt_processor=None):
         """ Creates a new agent instead of fetching from connector
         """
         super().__init__(id, prompt_processor)
-        self.id = id
         self._memory = Memory(self)
         self._update_mode = False
-        if self._prompt_processor:
-            self._memory.set_context(
-                self._prompt_processor.get_conversation_setup())
-        openai.api_key = agentware.openai_api_key
 
     def set_id(self, id):
         self.id = id
@@ -113,18 +104,14 @@ class Agent(BaseAgent):
 
     def clear_memory(self):
         self._memory.clear()
-    # def exists(self):
-    #     if not self.id:
-    #         return False
-    #     return agent_exists(self.id)
 
-    # def remove(self):
-    #     assert self.id
-    #     remove_agent(self.id)
-
-    # def register(self):
-    #     assert self.id
-    #     register_agent(self.id)
+    def register(self, override=False):
+        if agent_exists(self.id):
+            if override:
+                remove_agent(self.id)
+            else:
+                raise ValueError(f"Agent with id {self.id} exists")
+        register_agent(self.id)
 
     def push(self):
         # Check agent id valid
@@ -138,5 +125,5 @@ class Agent(BaseAgent):
         logger.debug(f"Memory text is {memory_text}")
         self._memory.extract_and_update_knowledge(memory_text)
         logger.debug(f"Pushing agent with name {self.id}")
-        # self._memory.update_agent()
+        self._memory.update_agent()
         self._memory.clear()

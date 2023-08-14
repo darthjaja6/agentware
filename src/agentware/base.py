@@ -175,7 +175,29 @@ class BaseAgent:
     def __init__(self, id, prompt_processor=None):
         self.id = id
         self._prompt_processor = prompt_processor
+        self.init(prompt_processor)
+        openai.api_key = agentware.openai_api_key
         self._core_engine = OpenAICoreEngine()
+
+    def init(self, prompt_processor=None):
+        config = dict()
+        if prompt_processor:
+            self.set_prompt_processor(prompt_processor)
+            config = prompt_processor.to_config()
+        self.set_config(config)
+
+    def get_conversation_setup(self):
+        if self._prompt_processor:
+            return self._prompt_processor.get_conversation_setup()
+        else:
+            return ""
+
+    def set_prompt_processor(self, prompt_processor):
+        self._prompt_processor = prompt_processor
+
+    def set_config(self, cfg: dict):
+        print("setting config with", cfg)
+        self.config = cfg
 
     def set_core_engine(self, core_engine):
         logger.debug(f"Setting core engine to {core_engine}")
@@ -364,8 +386,22 @@ class PromptProcessor:
         self._output_schema = output_schema
         # TODO: check output schema to make sure the first layer key is "output"
 
+    @classmethod
+    def from_config(cls, cfg: dict):
+        return cls(cfg["conversation_setup"], cfg["template"], cfg["output_schema"])
+
     def get_conversation_setup(self):
         return self._conversation_setup
+
+    def get_template(self):
+        return self._template
+
+    def to_config(self):
+        return {
+            "conversation_setup": self._conversation_setup,
+            "template": self._template,
+            "output_schema": self._output_schema
+        }
 
     def format(self, *args, **kwargs):
         if not self._template:
@@ -596,7 +632,6 @@ class Connector():
         if response.status_code == 200:
             logger.debug(f'Request to {url} was successful')
             data = json.loads(response.text)
-            print("data is", data)
             if not data["success"]:
                 raise ValueError(data["error_code"])
             agent_config = data["agent_config"]

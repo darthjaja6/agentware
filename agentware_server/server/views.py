@@ -87,7 +87,6 @@ def update_longterm_memory(request, agent_id: int, **kwargs):
     try:
         data = json.loads(request.body)
         memory_data = data['memory_data']
-        print("updating...")
         db_client.save_longterm_memory(agent_id, memory_data)
         return JsonResponse({'status': 'success'})
     except Exception as e:
