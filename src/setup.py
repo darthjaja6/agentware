@@ -1,10 +1,14 @@
 from setuptools import setup, find_packages
 
+with open("../README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
+
 setup(
     name='agentware',
     version='0.1.6',
-    description='A framework that builds agents with short-term memory management, longterm management',
-    long_description='long description',
+    description='A framework that can be used to easily build agents that has memory and knowledgebase',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     author='darthjaja',
     author_email='your-email@example.com',
     packages=find_packages(),

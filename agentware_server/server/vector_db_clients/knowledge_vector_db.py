@@ -1,9 +1,12 @@
+from agentware import EMBEDDING_DIM
+from agentware.agent_logger import Logger
 from agentware.utils.num_token_utils import get_num_tokens
 from typing import Dict, List
 from pymilvus import Collection, DataType, FieldSchema, CollectionSchema
-from agentware import EMBEDDING_DIM
 from agentware.base import BaseMilvusStore, Knowledge
-from agentware.agent_logger import Logger
+# import pkg_resources
+# package_version = pkg_resources.get_distribution('agentware').version
+# print(f"The version of agentware is {package_version}")
 
 logger = Logger()
 

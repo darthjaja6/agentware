@@ -1,9 +1,9 @@
 '''
 In this example, a house work robot updates its knowledge about where the fish is.
 '''
-from agentware.agent import Agent
-from agentware.base import PromptProcessor
 from agentware.agent_logger import Logger
+from agentware.base import PromptProcessor
+from agentware.agent import Agent
 
 logger = Logger()
 logger.set_level(Logger.INFO)
@@ -18,12 +18,13 @@ with agent.update():
     print("AI response:", agent.run("Hi, I'm Joe"))
     print("AI response", agent.run(
         "Mom bought a fish just now. It's on the second layer of the fridge"))
-    print("agent memory is", agent._memory.get_memory())
-    print("AI response", agent.run("Where is the fish?"))
+
 # You can chat with the agent as much as you want on other topics here...
 # And come back to this topic
 agent = Agent.pull(agent_id)
 with agent.update():
+    print("agent memory is", agent._memory._memory)
+    print("AI response", agent.run("Where is the fish?"))
     print("AI response:", agent.run(
         "Ok, I moved the fish to a plate on the table"))
 
