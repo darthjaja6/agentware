@@ -196,7 +196,6 @@ class BaseAgent:
         self._prompt_processor = prompt_processor
 
     def set_config(self, cfg: dict):
-        print("setting config with", cfg)
         self.config = cfg
 
     def set_core_engine(self, core_engine):
@@ -250,7 +249,6 @@ class BaseAgent:
     def _run(self, messages: List[Dict[str, str]]) -> str:
         logger.debug(
             f"Sending raw messages: {self._messages_to_str(messages)}")
-        print("core engine is", self._core_engine)
         self._core_engine.run(messages)
         raw_output = self._core_engine.run(messages)
         # completion = openai.ChatCompletion.create(

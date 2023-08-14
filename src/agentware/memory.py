@@ -130,7 +130,7 @@ class Memory():
         self.update_local_knowledge(new_knowledges)
         # query for commands
         # self._commands = self.connector.search_commands(self._agent.get_embeds(keyword))
-        # print("commands are", self._commands)
+        # logger.debug("commands are", self._commands)
 
     def reflect(self, memory_text, context=None) -> List[Knowledge]:
         # context gives information on what job the agent is doing.
@@ -177,13 +177,12 @@ class Memory():
         compress_until_index = 0
         current_num_tokens = 0
         for i, m in enumerate(self._memory):
-            print("m is", m)
             current_num_tokens += m.num_tokens
             if current_num_tokens > self._num_tokens_memory/2:
                 compress_until_index = i
                 break
         num_tokens_not_compressed = self._num_tokens_memory - current_num_tokens
-        print(
+        logger.debug(
             f"From {len(self._memory)} memory units, compressing from 0 to {compress_until_index}")
         memory_to_compress = self._memory[:(compress_until_index+1)]
         # Format memory to text
@@ -199,7 +198,7 @@ class Memory():
         self._num_tokens_memory = num_tokens_not_compressed + compressed_memory.num_tokens
         logger.info("memory after compressing is")
         logger.info(self.__str__())
-        self.extract_and_save_knowledge(memory_text)
+        self.extract_and_update_knowledge(memory_text)
 
         # reflections, ids_to_remove = self.reflect(memory_text)
         # # Remove knowledges
